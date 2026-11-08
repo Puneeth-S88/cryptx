@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllRounds, getActiveRound, updateRoundState } from '@/lib/rounds';
+import { getAllRounds, getAllRoundsAsync, getActiveRound, updateRoundState } from '@/lib/rounds';
 import { parseAndVerifyToken } from '@/lib/session';
 import { postAnnouncement } from '@/lib/broadcast';
 import { createAuditLog } from '@/lib/audit';
@@ -7,8 +7,11 @@ import { createAuditLog } from '@/lib/audit';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const rounds = getAllRounds();
-  const activeRound = getActiveRound();
+  const rounds = await getAllRoundsAsync();
+  const activeRound =
+    rounds.find((r) => r.state === 'open') ||
+    rounds.find((r) => r.state === 'paused') ||
+    rounds[0];
 
   return NextResponse.json({
     success: true,

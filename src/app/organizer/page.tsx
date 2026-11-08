@@ -194,6 +194,39 @@ export default function OrganizerDashboardPage() {
     }
   };
 
+  const fetchLeaderboardState = async () => {
+    try {
+      const res = await fetch('/api/leaderboard');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.frozen !== undefined) {
+          setIsFrozen(Boolean(data.frozen));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleFreeze = async () => {
+    const nextFrozen = !isFrozen;
+    setIsFrozen(nextFrozen);
+    try {
+      const res = await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ freeze: nextFrozen }),
+      });
+      const data = await res.json();
+      if (data.frozen !== undefined) {
+        setIsFrozen(Boolean(data.frozen));
+      }
+    } catch (err) {
+      console.error('Failed to toggle freeze:', err);
+      setIsFrozen(!nextFrozen);
+    }
+  };
+
   useEffect(() => {
     async function verifyOrganizer() {
       try {
@@ -210,6 +243,7 @@ export default function OrganizerDashboardPage() {
         setIsAuthorized(true);
         fetchTeams();
         fetchRounds();
+        fetchLeaderboardState();
         refreshBroadcast();
       } catch {
         router.replace('/auth/login?redirect=/organizer');
@@ -221,6 +255,7 @@ export default function OrganizerDashboardPage() {
     const interval = setInterval(() => {
       refreshBroadcast();
       fetchRounds();
+      fetchLeaderboardState();
     }, 4000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -715,7 +750,7 @@ Security Notice:
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setIsFrozen(!isFrozen)}
+              onClick={handleToggleFreeze}
               className={`neo-btn px-4 py-2 text-xs font-mono-code font-semibold transition-all ${
                 isFrozen ? 'bg-amber-950/40 text-amber-300 border-amber-600/40' : 'text-typography-muted hover:text-white'
               }`}

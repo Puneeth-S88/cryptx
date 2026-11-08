@@ -137,14 +137,14 @@ export async function POST(request: NextRequest) {
             email: dbTeam.captain_email || `${dbTeam.join_code.toLowerCase()}@cryptex.internal`,
             code: dbTeam.join_code,
             captain: dbTeam.captain_name || 'Team Captain',
-            password: dbTeam.password_hash || '',
-            total_score: 0,
-            latest_round_score: 0,
-            per_round_scores: {},
+            password: team?.password || dbTeam.password_hash || 'Competitor@2026',
+            total_score: team?.total_score || 0,
+            latest_round_score: team?.latest_round_score || 0,
+            per_round_scores: team?.per_round_scores || {},
             is_eliminated: dbTeam.is_eliminated || false,
             eliminated_after_round: dbTeam.eliminated_after_round || null,
             createdAt: dbTeam.created_at,
-            members: [],
+            members: team?.members || [],
           };
         }
       } catch (dbLookupErr) {

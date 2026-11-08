@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getQuestionsForRound,
+  getQuestionsForRoundAsync,
   saveQuestionsForRound,
   sanitizeQuestionsForParticipant,
 } from '@/lib/questions';
@@ -15,7 +16,7 @@ export async function GET(
 ) {
   try {
     const roundId = params.roundId;
-    const questions = getQuestionsForRound(roundId);
+    const questions = await getQuestionsForRoundAsync(roundId);
 
     // Check if the caller is an organizer
     const token =

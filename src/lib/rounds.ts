@@ -139,6 +139,45 @@ export function getAllRounds(): RoundItem[] {
   return globalThis.__cryptex_rounds!;
 }
 
+export async function getAllRoundsAsync(): Promise<RoundItem[]> {
+  const isMockUrl =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl) {
+    try {
+      const { supabaseAdmin } = await import('./supabase/admin');
+      const { data: dbRounds, error } = await supabaseAdmin
+        .from('event_rounds')
+        .select('*')
+        .order('round_number', { ascending: true });
+
+      if (!error && dbRounds && dbRounds.length > 0) {
+        const mapped: RoundItem[] = dbRounds.map((r: any) => ({
+          id: `r${r.round_number}`,
+          round_number: r.round_number,
+          title: r.title,
+          topic: r.topic || '',
+          round_type: (r.round_type || (r.puzzle_type === 'mcq' ? 'standard' : r.puzzle_type)) as any,
+          state: r.state,
+          duration_seconds: r.duration_seconds || 600,
+          max_points: r.max_points || 100,
+          deadline: r.deadline,
+          opened_at: r.opened_at,
+          closed_at: r.closed_at,
+          is_qualified: true,
+        }));
+        globalThis.__cryptex_rounds = mapped;
+        return mapped;
+      }
+    } catch (err) {
+      console.error('Supabase getAllRoundsAsync error:', err);
+    }
+  }
+
+  return getAllRounds();
+}
+
 export function getRoundById(id: string): RoundItem | undefined {
   const list = getAllRounds();
   return list.find((r) => r.id === id || String(r.round_number) === id);

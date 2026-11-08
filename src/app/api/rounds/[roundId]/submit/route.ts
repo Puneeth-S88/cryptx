@@ -4,8 +4,9 @@ import { createAuditLog } from '@/lib/audit';
 import { validateSession } from '@/lib/session';
 import { updateTeamScore } from '@/lib/teams';
 import { getRoundById } from '@/lib/rounds';
-import { getQuestionsForRound } from '@/lib/questions';
+import { getQuestionsForRound, getQuestionsForRoundAsync } from '@/lib/questions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { recordSubmissionAndScore } from '@/lib/supabase/sync';
 import {
   evaluateRound1,
   evaluateRound2,
@@ -95,13 +96,9 @@ export async function POST(
   try {
     const roundId = params.roundId;
     const body = await request.json().catch(() => ({}));
-    const { teamId, payload, telemetry } = body;
-
-    if (!teamId) {
-      return NextResponse.json(
-        { success: false, error: 'teamId is required for submission.' },
-        { status: 400 }
-      );
+    let { teamId, payload, telemetry, answers } = body;
+    if (!payload && answers) {
+      payload = answers;
     }
 
     // 0. Single-Device Session Validation & Team Identity Verification
@@ -133,6 +130,17 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: 'Invalid or expired session. Please sign in again.' },
         { status: 401 }
+      );
+    }
+
+    if (!teamId) {
+      teamId = val.session.teamId || val.session.accountId;
+    }
+
+    if (!teamId) {
+      return NextResponse.json(
+        { success: false, error: 'teamId is required for submission.' },
+        { status: 400 }
       );
     }
 
@@ -186,7 +194,7 @@ export async function POST(
 
     // Normalize round identification (e.g. 'r1', 'r2', etc. or UUIDs)
     const rid = String(roundId).toLowerCase();
-    const serverQuestions = getQuestionsForRound(roundId);
+    const serverQuestions = await getQuestionsForRoundAsync(roundId);
 
     // If Round 2 structured cipher items are submitted, score via evaluateRound2
     if ((rid === 'r2' || rid.includes('round-2') || rid === '2') && payload?.items) {
@@ -326,29 +334,17 @@ export async function POST(
       ? parseInt(rid.slice(1), 10) || 1
       : parseInt(rid, 10) || 1;
 
-    // Update authoritative team scores
+    // Update authoritative team scores in memory
     updateTeamScore(teamId, roundNumber, result.score);
 
-    // If Supabase is connected, record submission in PostgreSQL database
-    const isMockUrl =
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
-
-    if (!isMockUrl) {
-      try {
-        await supabaseAdmin.from('submissions').insert({
-          round_id: roundId,
-          team_id: teamId,
-          submission_payload: payload || {},
-          score_awarded: result.score,
-          scoring_breakdown: result.breakdown || {},
-          is_evaluated: true,
-        });
-      } catch (dbErr) {
-        // Non-blocking log
-        console.error('Supabase submission save error:', dbErr);
-      }
-    }
+    // Synchronize score and submission to Supabase
+    await recordSubmissionAndScore({
+      teamIdOrCode: teamId,
+      roundIdOrNumber: roundId,
+      score: result.score,
+      breakdown: result.breakdown,
+      submissionPayload: payload,
+    });
 
     // Server-side audit logging
     await createAuditLog({

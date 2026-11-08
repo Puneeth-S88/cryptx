@@ -97,6 +97,26 @@
         "ignore_punct_space": true,
         "accept_multiple_answers": true
       }
+    },
+    {
+      "id": "q_r1_6_1794166828872",
+      "order_index": 6,
+      "question_type": "mcq",
+      "question_text": "New MCQ Question whyyyy???",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "points": 10,
+      "correct_option_index": 1,
+      "accepted_answers": [],
+      "text_settings": {
+        "ignore_case": true,
+        "ignore_punct_space": true,
+        "accept_multiple_answers": true
+      }
     }
   ],
   "2": [
@@ -161,11 +181,28 @@
         "ignore_punct_space": true,
         "accept_multiple_answers": true
       }
+    },
+    {
+      "id": "q_r2_4_1794166988991",
+      "order_index": 4,
+      "question_type": "text",
+      "question_text": "New TEXT Question +₹+₹+₹++₹",
+      "options": [],
+      "points": 10,
+      "correct_option_index": 0,
+      "accepted_answers": [
+        "CORRECT_ANSWER"
+      ],
+      "text_settings": {
+        "ignore_case": true,
+        "ignore_punct_space": true,
+        "accept_multiple_answers": true
+      }
     }
   ],
   "r1": [
     {
-      "id": "q1-1",
+      "id": "bcdb9cac-46c0-42ac-96f7-02ff3a8133cf",
       "order_index": 1,
       "question_type": "mcq",
       "question_text": "What is the primary definition of decryption in classical cryptography?",
@@ -180,75 +217,73 @@
       "accepted_answers": [],
       "text_settings": {
         "ignore_case": true,
-        "ignore_punct_space": true,
-        "accept_multiple_answers": true
+        "ignore_punct_space": true
       }
     },
     {
-      "id": "q1-2",
+      "id": "acd4887c-e0ee-496b-a644-b095dc727fca",
       "order_index": 2,
       "question_type": "mcq",
-      "question_text": "Which substitution cipher shifts the alphabet by 3 positions by default?",
+      "question_text": "Using the standard A1Z26 mapping where A=1, B=2 ... Z=26, which word corresponds to these numbers?",
+      "monospace_code": "3 - 15 - 4 - 5",
       "options": [
-        "Caesar Cipher",
-        "Atbash Cipher",
-        "Vigenere Cipher",
-        "Playfair Cipher"
+        "CODE",
+        "COLD",
+        "DOME",
+        "CORE"
       ],
       "points": 20,
       "correct_option_index": 0,
       "accepted_answers": [],
       "text_settings": {
         "ignore_case": true,
-        "ignore_punct_space": true,
-        "accept_multiple_answers": true
+        "ignore_punct_space": true
       }
     },
     {
-      "id": "q1-3",
+      "id": "e8c9ed85-e886-4800-a02c-3345933dcb60",
       "order_index": 3,
       "question_type": "mcq",
-      "question_text": "The Atbash cipher reverses the alphabet (A -> Z, B -> Y). What is the Atbash encryption of \"AX\"?",
+      "question_text": "In a simple substitution cipher where plaintext letter E maps to ciphertext H, what is the shift amount?",
+      "monospace_code": "Plain: E -> Cipher: H",
       "options": [
-        "ZA",
-        "BY",
-        "ZC",
-        "XC"
+        "1",
+        "2",
+        "3",
+        "5"
       ],
       "points": 20,
       "correct_option_index": 2,
       "accepted_answers": [],
       "text_settings": {
         "ignore_case": true,
-        "ignore_punct_space": true,
-        "accept_multiple_answers": true
+        "ignore_punct_space": true
       }
     },
     {
-      "id": "q1-4",
+      "id": "e1e7cd90-8807-44ce-9795-aa66a785c4cf",
       "order_index": 4,
       "question_type": "mcq",
-      "question_text": "What is the primary security flaw of simple monoalphabetic substitution ciphers?",
+      "question_text": "Which classical cipher family shifts the entire alphabet by a fixed integer k?",
       "options": [
-        "They require 256-bit quantum keys",
-        "They preserve natural letter frequency patterns of the plaintext",
-        "They can only encrypt numerals 0-9",
-        "They require asymmetric public keys"
+        "Playfair Cipher",
+        "Caesar Cipher",
+        "Enigma Machine",
+        "RSA"
       ],
       "points": 20,
       "correct_option_index": 1,
       "accepted_answers": [],
       "text_settings": {
         "ignore_case": true,
-        "ignore_punct_space": true,
-        "accept_multiple_answers": true
+        "ignore_punct_space": true
       }
     },
     {
-      "id": "q1-5",
+      "id": "3675da07-3dbe-4515-8ffe-1e876da98389",
       "order_index": 5,
       "question_type": "text",
-      "question_text": "In classical cryptography, what 3-letter word denotes the secret parameter used to control encryption and decryption algorithms?",
+      "question_text": "Type the 3-letter cryptographic word used to lock and unlock ciphertexts:",
       "options": [],
       "points": 20,
       "correct_option_index": 0,
@@ -258,8 +293,7 @@
       ],
       "text_settings": {
         "ignore_case": true,
-        "ignore_punct_space": true,
-        "accept_multiple_answers": true
+        "ignore_punct_space": true
       }
     }
   ],
@@ -319,6 +353,23 @@
       "accepted_answers": [
         "HI",
         "H I"
+      ],
+      "text_settings": {
+        "ignore_case": true,
+        "ignore_punct_space": true,
+        "accept_multiple_answers": true
+      }
+    },
+    {
+      "id": "q_r2_4_1794166988991",
+      "order_index": 4,
+      "question_type": "text",
+      "question_text": "New TEXT Question +₹+₹+₹++₹",
+      "options": [],
+      "points": 10,
+      "correct_option_index": 0,
+      "accepted_answers": [
+        "CORRECT_ANSWER"
       ],
       "text_settings": {
         "ignore_case": true,

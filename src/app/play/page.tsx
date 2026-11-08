@@ -177,7 +177,28 @@ export default function PlayArenaPage() {
             id: data.user.teamId || data.user.accountId,
             name: data.user.accountName,
             captain: data.user.accountName,
+            totalScore: data.teamStats ? data.teamStats.totalScore : prev.totalScore,
+            rank: data.teamStats ? data.teamStats.rank : prev.rank,
+            is_eliminated: data.teamStats ? data.teamStats.isEliminated : prev.is_eliminated,
+            eliminated_after_round: data.teamStats ? data.teamStats.eliminatedAfterRound : prev.eliminated_after_round,
           }));
+
+          if (data.teamStats?.perRoundScores) {
+            setSubmittedRounds((prev) => {
+              const updated = { ...prev };
+              for (const [rNum, rScore] of Object.entries(data.teamStats.perRoundScores as Record<string, any>)) {
+                const pts = typeof rScore === 'number' ? rScore : (rScore?.points ?? 0);
+                const rKey = `r${rNum}`;
+                if (!updated[rKey]) {
+                  updated[rKey] = { score: pts };
+                }
+                if (!updated[rNum]) {
+                  updated[rNum] = { score: pts };
+                }
+              }
+              return updated;
+            });
+          }
         } else {
           router.push('/auth/login?redirect=/play');
         }
@@ -305,6 +326,8 @@ export default function PlayArenaPage() {
         setSubmittedRounds((prev) => ({
           ...prev,
           [activeRound.id]: { score: awarded, breakdown: data.breakdown },
+          [`r${activeRound.round_number}`]: { score: awarded, breakdown: data.breakdown },
+          [String(activeRound.round_number)]: { score: awarded, breakdown: data.breakdown },
         }));
         setTeamInfo((prev) => ({
           ...prev,

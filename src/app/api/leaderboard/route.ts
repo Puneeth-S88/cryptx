@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getAllTeams } from '@/lib/teams';
 import { rankTeamsWithTieBreak, type TeamLeaderboardEntry } from '@/lib/crypto/tie-break';
+import { parseAndVerifyToken } from '@/lib/session';
+import { createAuditLog } from '@/lib/audit';
+import { toggleLeaderboardFreezeInSupabase, EVENT_ID } from '@/lib/supabase/sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +15,7 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
 
     if (!isMockUrl) {
-      // 1. Fetch default event ID
+      // 1. Fetch default event ID & freeze status
       const { data: event } = await supabaseAdmin
         .from('events')
         .select('id, is_leaderboard_frozen')
@@ -67,5 +70,47 @@ export async function GET() {
       leaderboard: rankTeamsWithTieBreak(entries, 8),
       frozen: false,
     });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const token =
+      request.cookies.get('cryptex_session')?.value ||
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized: Session required.' }, { status: 401 });
+    }
+
+    const payload = parseAndVerifyToken(token);
+    if (!payload || payload.role !== 'organizer') {
+      return NextResponse.json({ error: 'Forbidden: Organizer privilege required.' }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const freeze = Boolean(body.freeze);
+
+    await toggleLeaderboardFreezeInSupabase(freeze);
+
+    await createAuditLog({
+      action: freeze ? 'LEADERBOARD_FROZEN' : 'LEADERBOARD_UNFROZEN',
+      entityType: 'event',
+      entityId: EVENT_ID,
+      details: {
+        organizer: payload.name,
+        frozen: freeze,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      frozen: freeze,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err.message || 'Failed to toggle leaderboard freeze.' },
+      { status: 500 }
+    );
   }
 }

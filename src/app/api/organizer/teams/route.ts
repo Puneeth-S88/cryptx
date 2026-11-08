@@ -13,6 +13,11 @@ import { createAuditLog } from '@/lib/audit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { parseAndVerifyToken } from '@/lib/session';
 import { registerTeamAccount } from '@/lib/registration';
+import {
+  fetchTeamsWithScoresFromSupabase,
+  deleteTeamFromSupabase,
+  updateTeamInSupabase,
+} from '@/lib/supabase/sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,38 +41,11 @@ export async function GET(request: NextRequest) {
 
   if (!isMockUrl) {
     try {
-      const { data: dbTeams, error } = await supabaseAdmin
-        .from('teams')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (!error && dbTeams && dbTeams.length > 0) {
-        const formattedTeams = dbTeams.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          email: t.captain_email || `${t.join_code.toLowerCase()}@cryptex.internal`,
-          code: t.join_code,
-          captain: t.captain_name || 'Team Captain',
-          password: t.password_hash || '',
-          total_score: 0,
-          latest_round_score: 0,
-          per_round_scores: {},
-          is_eliminated: t.is_eliminated || false,
-          eliminated_after_round: t.eliminated_after_round || null,
-          createdAt: t.created_at,
-          members: [
-            {
-              id: `m_${t.id}_1`,
-              name: t.captain_name || 'Captain',
-              email: t.captain_email || '',
-              role: 'Captain',
-              joinedAt: t.created_at,
-            },
-          ],
-        }));
+      const dbTeams = await fetchTeamsWithScoresFromSupabase();
+      if (dbTeams && dbTeams.length > 0) {
         return NextResponse.json({
           success: true,
-          teams: formattedTeams,
+          teams: dbTeams,
         });
       }
     } catch (err) {
@@ -200,9 +178,42 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const isMockUrl =
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
     let updated;
     if (action === 'modify' || name !== undefined || captain !== undefined || email !== undefined || code !== undefined || password !== undefined || is_eliminated !== undefined) {
-      updated = updateTeam(teamId, {
+      if (!isMockUrl) {
+        const dbResult = await updateTeamInSupabase(teamId, {
+          name,
+          captain,
+          email,
+          code,
+          password,
+          is_eliminated,
+          eliminated_after_round: body.eliminated_after_round !== undefined ? body.eliminated_after_round : (is_eliminated ? currentRoundNumber : null),
+        });
+        if (dbResult.success && dbResult.team) {
+          updated = {
+            id: dbResult.team.id,
+            name: dbResult.team.name,
+            captain: dbResult.team.captain_name || captain || '',
+            email: dbResult.team.captain_email || email || '',
+            code: dbResult.team.join_code,
+            password: password || '',
+            total_score: 0,
+            latest_round_score: 0,
+            per_round_scores: {},
+            is_eliminated: dbResult.team.is_eliminated,
+            eliminated_after_round: dbResult.team.eliminated_after_round,
+            createdAt: dbResult.team.created_at,
+            members: [],
+          };
+        }
+      }
+
+      const memUpdated = updateTeam(teamId, {
         name,
         captain,
         email,
@@ -211,6 +222,8 @@ export async function PATCH(request: NextRequest) {
         is_eliminated,
         eliminated_after_round: body.eliminated_after_round !== undefined ? body.eliminated_after_round : (is_eliminated ? currentRoundNumber : null),
       });
+
+      if (memUpdated) updated = memUpdated;
 
       if (!updated) {
         return NextResponse.json(
@@ -231,7 +244,35 @@ export async function PATCH(request: NextRequest) {
         },
       });
     } else {
-      updated = toggleTeamElimination(teamId, currentRoundNumber);
+      if (!isMockUrl) {
+        const { data: dbTeam } = await supabaseAdmin.from('teams').select('is_eliminated').or(`id.eq.${teamId},join_code.eq.${teamId}`).maybeSingle();
+        if (dbTeam) {
+          const nextState = !dbTeam.is_eliminated;
+          await updateTeamInSupabase(teamId, {
+            is_eliminated: nextState,
+            eliminated_after_round: nextState ? currentRoundNumber : null,
+          });
+          updated = {
+            id: teamId,
+            name: 'Team',
+            captain: 'Captain',
+            email: '',
+            code: '',
+            password: '',
+            total_score: 0,
+            latest_round_score: 0,
+            per_round_scores: {},
+            is_eliminated: nextState,
+            eliminated_after_round: nextState ? currentRoundNumber : null,
+            createdAt: new Date().toISOString(),
+            members: [],
+          };
+        }
+      }
+
+      const memUpdated = toggleTeamElimination(teamId, currentRoundNumber);
+      if (memUpdated) updated = memUpdated;
+
       if (!updated) {
         return NextResponse.json(
           { success: false, error: 'Team not found.' },
@@ -249,28 +290,6 @@ export async function PATCH(request: NextRequest) {
           round: currentRoundNumber,
         },
       });
-    }
-
-    const isMockUrl =
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
-
-    if (!isMockUrl) {
-      try {
-        await supabaseAdmin
-          .from('teams')
-          .update({
-            name: updated.name,
-            captain_name: updated.captain,
-            captain_email: updated.email,
-            join_code: updated.code,
-            is_eliminated: updated.is_eliminated,
-            eliminated_after_round: updated.eliminated_after_round,
-          })
-          .eq('join_code', updated.code);
-      } catch (dbErr) {
-        console.error('Supabase team update error:', dbErr);
-      }
     }
 
     return NextResponse.json({
@@ -313,60 +332,47 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const team = findTeamByIdentifier(teamId);
-    if (!team) {
+    const isMockUrl =
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+    let teamName = '';
+
+    // 1. Delete from Supabase if connected
+    if (!isMockUrl) {
+      const dbResult = await deleteTeamFromSupabase(teamId);
+      if (dbResult.success && dbResult.teamName) {
+        teamName = dbResult.teamName;
+      }
+    }
+
+    // 2. Also remove from local in-memory store if present
+    const memTeam = findTeamByIdentifier(teamId);
+    if (memTeam) {
+      deleteTeam(teamId);
+      if (!teamName) teamName = memTeam.name;
+    }
+
+    if (!teamName && isMockUrl && !memTeam) {
       return NextResponse.json(
         { success: false, error: 'Team not found.' },
         { status: 404 }
       );
     }
 
-    const deleted = deleteTeam(teamId);
-    if (!deleted) {
-      return NextResponse.json(
-        { success: false, error: 'Failed to delete team.' },
-        { status: 500 }
-      );
-    }
-
-    const isMockUrl =
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
-
-    if (!isMockUrl) {
-      try {
-        if (team.email) {
-          const { data: usersData } = await supabaseAdmin.auth.admin.listUsers();
-          const authUser = usersData?.users?.find(
-            (u) => u.email?.toLowerCase() === team.email.toLowerCase()
-          );
-          if (authUser) {
-            await supabaseAdmin.auth.admin.deleteUser(authUser.id).catch(() => {});
-          }
-        }
-        await supabaseAdmin
-          .from('teams')
-          .delete()
-          .eq('join_code', team.code);
-      } catch (dbErr) {
-        console.error('Supabase team delete error:', dbErr);
-      }
-    }
-
     await createAuditLog({
       action: 'ORGANIZER_DELETED_TEAM',
       entityType: 'team',
-      entityId: team.id,
+      entityId: teamId,
       details: {
-        team_name: team.name,
-        code: team.code,
-        captain: team.captain,
+        team_name: teamName || teamId,
+        organizer: payload.name,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Team '${team.name}' deleted successfully.`,
+      message: `Team '${teamName || teamId}' deleted successfully.`,
     });
   } catch (err: any) {
     return NextResponse.json(

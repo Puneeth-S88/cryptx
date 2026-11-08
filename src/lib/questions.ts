@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { QuestionDraft } from '@/components/organizer/QuestionBuilder';
+import { fetchRoundQuestionsFromSupabase, saveRoundQuestionsToSupabase } from './supabase/sync';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const QUESTIONS_FILE = path.join(DATA_DIR, 'questions_store.json');
@@ -203,6 +204,32 @@ export function getQuestionsForRound(roundId: string): QuestionDraft[] {
   return store[key] || store[roundId] || [];
 }
 
+export async function getQuestionsForRoundAsync(roundId: string): Promise<QuestionDraft[]> {
+  const isMockUrl =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl) {
+    try {
+      const dbQuestions = await fetchRoundQuestionsFromSupabase(roundId);
+      if (dbQuestions && dbQuestions.length > 0) {
+        const key = normalizeKey(roundId);
+        if (!globalThis.__cryptex_questions_store) {
+          globalThis.__cryptex_questions_store = {};
+        }
+        globalThis.__cryptex_questions_store[key] = dbQuestions;
+        globalThis.__cryptex_questions_store[roundId] = dbQuestions;
+        persistQuestionsToDisk(globalThis.__cryptex_questions_store);
+        return dbQuestions;
+      }
+    } catch (err) {
+      console.error('Error fetching questions async from Supabase:', err);
+    }
+  }
+
+  return getQuestionsForRound(roundId);
+}
+
 export function sanitizeQuestionsForParticipant(questions: QuestionDraft[]): Array<Omit<QuestionDraft, 'correct_option_index' | 'accepted_answers'>> {
   return questions.map((q) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -252,17 +279,9 @@ export async function saveQuestionsForRound(
 
   if (!isMockUrl) {
     try {
-      const { supabaseAdmin } = await import('./supabase/admin');
-      // Update puzzle content in supabase
-      await supabaseAdmin
-        .from('puzzles')
-        .upsert({
-          round_id: roundId,
-          title: `Round ${roundId.toUpperCase()} Questions`,
-          content: { questions: sanitized },
-        }, { onConflict: 'round_id' });
+      await saveRoundQuestionsToSupabase(roundId, sanitized);
     } catch (err) {
-      console.error('Supabase puzzles save error:', err);
+      console.error('Supabase questions save error:', err);
     }
   }
 
