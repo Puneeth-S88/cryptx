@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0B0D10;
+  --foreground: #FFFFFF;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0D10;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E2229;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2563EB;
+}
+
+/* Technical Monospace & Cipher Box Styling */
+.font-mono-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.05em;
+}
+
+/* Neomorphic Utility Classes */
+@layer components {
+  .neo-card {
+    @apply bg-surface-card border border-surface-border rounded-xl shadow-neo-card;
+  }
+  .neo-flat {
+    @apply bg-surface-card border border-surface-border rounded-lg shadow-neo-flat;
+  }
+  .neo-inset {
+    @apply bg-surface-inset border border-surface-border rounded-lg shadow-neo-inset text-white;
+  }
+  .neo-btn {
+    @apply bg-surface-card border border-surface-border rounded-lg shadow-neo-btn text-typography-light transition-all active:shadow-neo-inset hover:border-accent-blue/50 hover:text-white;
+  }
+  .neo-btn-primary {
+    @apply bg-gradient-to-r from-blue-700 to-accent-blue border border-blue-500/50 rounded-lg shadow-neo-blue text-white font-semibold transition-all hover:brightness-110 active:scale-[0.98];
+  }
+  .neo-input {
+    @apply bg-surface-inset border border-surface-border/80 rounded-lg shadow-neo-inset px-4 py-2.5 text-white font-mono-code text-sm focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-colors;
+  }
+}
+
+/* Focus Ring */
+*:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}

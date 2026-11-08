@@ -1,0 +1,64 @@
+# ==============================================================================
+# CRYPTEX 2026 — Git Ignore Configuration
+# ==============================================================================
+
+# 1. Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# 2. Next.js Production Build Outputs & Cache
+.next/
+.next-dev/
+out/
+build/
+dist/
+
+# 3. Environment Variables & Secret Credentials (CRITICAL)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.local
+# Explicitly keep the public example template tracked
+!.env.example
+
+# 4. Testing, Coverage & Playwright Artifacts
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# 5. TypeScript Incremental Build Cache
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# 6. Deployment & Agent Caches
+.vercel/
+.agents/
+
+# 7. Debug & Error Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 8. OS & System Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# 9. IDE & Editor Files
+.idea/
+*.sublime-project
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: cryptex_app
+    init: true
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      - /app/.next-dev
+      - /app/coverage
+    command: npm run dev
