@@ -679,7 +679,8 @@ Security Notice:
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setTeams((prev) => prev.filter((t) => t.id !== team.id));
+        setTeams((prev) => prev.filter((t) => t.id !== team.id && t.code !== team.code));
+        await fetchTeams();
       } else {
         alert(data.error || 'Failed to delete team.');
       }

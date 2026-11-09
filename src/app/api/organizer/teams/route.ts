@@ -363,6 +363,14 @@ export async function DELETE(request: NextRequest) {
       const dbResult = await deleteTeamFromSupabase(teamId);
       if (dbResult.success && dbResult.teamName) {
         teamName = dbResult.teamName;
+      } else {
+        const mem = findTeamByIdentifier(teamId);
+        if (mem && mem.code && mem.code !== teamId) {
+          const retry = await deleteTeamFromSupabase(mem.code);
+          if (retry.success && retry.teamName) {
+            teamName = retry.teamName;
+          }
+        }
       }
     }
 

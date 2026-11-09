@@ -688,7 +688,19 @@ export async function deleteTeamFromSupabase(teamIdOrCode: string): Promise<{ su
       }
     }
 
-    // 3. Delete from public.teams (cascades to scores, submissions, qualifications, members)
+    // 2.5 Delete dependent records first to prevent foreign key constraint violations
+    try {
+      await supabaseAdmin.from('submissions').delete().eq('team_id', dbTeam.id);
+      await supabaseAdmin.from('scores').delete().eq('team_id', dbTeam.id);
+      await supabaseAdmin.from('round_qualifications').delete().eq('team_id', dbTeam.id);
+      await supabaseAdmin.from('round_attempts').delete().eq('team_id', dbTeam.id);
+      await supabaseAdmin.from('hint_usage').delete().eq('team_id', dbTeam.id);
+      await supabaseAdmin.from('team_members').delete().eq('team_id', dbTeam.id);
+    } catch (fkErr) {
+      console.warn('Pre-delete dependent tables notice:', fkErr);
+    }
+
+    // 3. Delete from public.teams
     const { error: delErr } = await supabaseAdmin.from('teams').delete().eq('id', dbTeam.id);
     if (delErr) {
       return { success: false, error: delErr.message };
