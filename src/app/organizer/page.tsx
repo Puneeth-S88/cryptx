@@ -379,6 +379,13 @@ export default function OrganizerDashboardPage() {
   };
 
   const getSpecialRoundType = (roundId: string | null): RoundType => {
+    if (!roundId) return 'polybius';
+    const found = allRounds.find(
+      (r) => r.id === roundId || String(r.round_number) === roundId
+    );
+    if (found && (found as any).round_type && (found as any).round_type !== 'standard') {
+      return (found as any).round_type as RoundType;
+    }
     switch (roundId) {
       case 'r3': return 'polybius';
       case 'r4': return 'scramble';
@@ -391,14 +398,9 @@ export default function OrganizerDashboardPage() {
   };
 
   const getSpecialRoundInitialConfig = (roundId: string | null): SpecialRoundContentConfig => {
-    switch (roundId) {
-      case 'r3':
-        return {
-          round_type: 'polybius',
-          ciphertext_pairs: '32-15-15-44 / 11-44 / 22-11-44-15',
-          polybius_plaintext: 'MEET AT GATE',
-        };
-      case 'r4':
+    const specialType = getSpecialRoundType(roundId);
+    switch (specialType) {
+      case 'scramble':
         return {
           round_type: 'scramble',
           scramble_words: [
@@ -409,7 +411,7 @@ export default function OrganizerDashboardPage() {
             { id: 5, word: 'TXET', clue: 'Written words', points: 30 },
           ],
         };
-      case 'r5':
+      case 'memory':
         return {
           round_type: 'memory',
           reveal_seconds: 60,
@@ -421,7 +423,7 @@ export default function OrganizerDashboardPage() {
             { cipher_word: 'RGGK', plain_word: 'DOOR', points: 40 },
           ],
         };
-      case 'r6':
+      case 'auction':
         return {
           round_type: 'auction',
           auction_ciphertext: 'PHHW DW GDZQ',
@@ -434,14 +436,14 @@ export default function OrganizerDashboardPage() {
             'Hint 3: First word is MEET',
           ],
         };
-      case 'r7':
+      case 'colour':
         return {
           round_type: 'colour',
           colour_a: '#2563EB',
           colour_b: '#9CA3AF',
           colour_plaintext: 'CODE',
         };
-      case 'r8':
+      case 'vigenere':
         return {
           round_type: 'vigenere',
           vigenere_ciphertext: 'LXFOPVEFRNHR',
@@ -451,6 +453,13 @@ export default function OrganizerDashboardPage() {
           vigenere_explanation_points: 150,
           vigenere_keywords: ['vigenere', 'lemon', 'repeat', 'shift', 'modular', 'polyalphabetic'],
         };
+      case 'jury':
+        return {
+          round_type: 'jury',
+          jury_max_points: 100,
+          jury_criteria: 'Submit your solution and defense rationale for the jury panel.',
+        };
+      case 'polybius':
       default:
         return {
           round_type: 'polybius',
@@ -1024,32 +1033,49 @@ Security Notice:
                   ← Back to All Rounds
                 </button>
 
-                {builderSelectedRoundId === 'r1' || builderSelectedRoundId === 'r2' ? (
-                  loadingQuestions ? (
-                    <div className="neo-card p-12 text-center space-y-3 font-mono-code">
-                      <span className="w-4 h-4 rounded-full bg-accent-blue inline-block animate-ping" />
-                      <p className="text-xs text-typography-muted">Loading round questions from server...</p>
-                    </div>
-                  ) : (
-                    <QuestionBuilder
-                      key={builderSelectedRoundId}
-                      roundId={builderSelectedRoundId}
-                      initialQuestions={builderQuestions}
-                      onSave={handleSaveQuestions}
+                {(() => {
+                  const selectedRound = allRounds.find(
+                    (r) => r.id === builderSelectedRoundId || String(r.round_number) === builderSelectedRoundId
+                  );
+                  const isStandard =
+                    !selectedRound ||
+                    (selectedRound as any).round_type === 'standard' ||
+                    builderSelectedRoundId === 'r1' ||
+                    builderSelectedRoundId === 'r2';
+
+                  if (isStandard) {
+                    return loadingQuestions ? (
+                      <div className="neo-card p-12 text-center space-y-3 font-mono-code">
+                        <span className="w-4 h-4 rounded-full bg-accent-blue inline-block animate-ping" />
+                        <p className="text-xs text-typography-muted">Loading round questions from server...</p>
+                      </div>
+                    ) : (
+                      <QuestionBuilder
+                        key={builderSelectedRoundId}
+                        roundId={builderSelectedRoundId}
+                        initialQuestions={builderQuestions}
+                        onSave={handleSaveQuestions}
+                        isLockedOrScored={false}
+                        requireElevation={requireElevation}
+                      />
+                    );
+                  }
+
+                  const roundType =
+                    ((selectedRound as any).round_type as RoundType) ||
+                    getSpecialRoundType(builderSelectedRoundId);
+
+                  return (
+                    <SpecialRoundEditor
+                      key={builderSelectedRoundId || 'special'}
+                      roundType={roundType}
+                      initialConfig={getSpecialRoundInitialConfig(builderSelectedRoundId)}
+                      onSave={handleSaveSpecialRound}
                       isLockedOrScored={false}
                       requireElevation={requireElevation}
                     />
-                  )
-                ) : (
-                  <SpecialRoundEditor
-                    key={builderSelectedRoundId || 'special'}
-                    roundType={getSpecialRoundType(builderSelectedRoundId)}
-                    initialConfig={getSpecialRoundInitialConfig(builderSelectedRoundId)}
-                    onSave={handleSaveSpecialRound}
-                    isLockedOrScored={false}
-                    requireElevation={requireElevation}
-                  />
-                )}
+                  );
+                })()}
               </div>
             )}
           </div>

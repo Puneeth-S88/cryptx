@@ -64,4 +64,41 @@ describe('Round Lifecycle and Activation Store', () => {
     const scored = await updateRoundState('r2', 'scored');
     expect(scored?.state).toBe('scored');
   });
+
+  it('can reopen a closed or scored round with a refreshed deadline and clear closed_at', async () => {
+    await updateRoundState('r2', 'open', { duration_seconds: 600 });
+    await updateRoundState('r2', 'closed');
+    const closedRound = getRoundById('r2');
+    expect(closedRound?.state).toBe('closed');
+    expect(closedRound?.closed_at).toBeTruthy();
+
+    const reopened = await updateRoundState('r2', 'open', { duration_seconds: 600 });
+    expect(reopened?.state).toBe('open');
+    expect(reopened?.closed_at).toBeNull();
+    expect(reopened?.deadline).toBeTruthy();
+    const deadlineMs = new Date(reopened!.deadline!).getTime();
+    expect(deadlineMs).toBeGreaterThan(Date.now());
+
+    // From scored to open
+    await updateRoundState('r2', 'scored');
+    const reopenedFromScored = await updateRoundState('r2', 'open', { duration_seconds: 300 });
+    expect(reopenedFromScored?.state).toBe('open');
+    expect(reopenedFromScored?.closed_at).toBeNull();
+  });
+
+  it('can reset a closed or scored round back to locked', async () => {
+    await updateRoundState('r2', 'open', { duration_seconds: 600 });
+    await updateRoundState('r2', 'closed');
+    const lockedFromClosed = await updateRoundState('r2', 'locked');
+    expect(lockedFromClosed?.state).toBe('locked');
+    expect(lockedFromClosed?.deadline).toBeNull();
+    expect(lockedFromClosed?.closed_at).toBeNull();
+
+    await updateRoundState('r2', 'open', { duration_seconds: 600 });
+    await updateRoundState('r2', 'scored');
+    const lockedFromScored = await updateRoundState('r2', 'locked');
+    expect(lockedFromScored?.state).toBe('locked');
+    expect(lockedFromScored?.deadline).toBeNull();
+    expect(lockedFromScored?.closed_at).toBeNull();
+  });
 });

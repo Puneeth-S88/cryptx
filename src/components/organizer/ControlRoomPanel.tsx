@@ -144,14 +144,53 @@ export function ControlRoomPanel({
             )}
 
             {round.state === 'closed' && (
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => executeStateTransition('scored')}
-                className="px-5 py-2.5 rounded bg-accent-blue hover:bg-accent-hover text-white font-mono-code text-xs font-bold shadow-sm shadow-accent-glow transition-all"
-              >
-                ✓ Finalize Scores & Announce Qualifiers
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeStateTransition('scored')}
+                  className="px-5 py-2.5 rounded bg-accent-blue hover:bg-accent-hover text-white font-mono-code text-xs font-bold shadow-sm shadow-accent-glow transition-all"
+                >
+                  ✓ Finalize Scores & Announce Qualifiers
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeStateTransition('open')}
+                  className="px-4 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono-code text-xs font-bold transition-all shadow-sm"
+                >
+                  ↻ Reopen Round & Resume Submissions
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeStateTransition('locked')}
+                  className="px-4 py-2.5 rounded bg-surface-dark hover:bg-surface-border border border-surface-border text-typography-muted hover:text-white font-mono-code text-xs font-bold transition-all"
+                >
+                  🔒 Reset to Locked
+                </button>
+              </>
+            )}
+
+            {round.state === 'scored' && (
+              <>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeStateTransition('open')}
+                  className="px-4 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono-code text-xs font-bold transition-all shadow-sm"
+                >
+                  ↻ Reopen Round & Resume Submissions
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => executeStateTransition('locked')}
+                  className="px-4 py-2.5 rounded bg-surface-dark hover:bg-surface-border border border-surface-border text-typography-muted hover:text-white font-mono-code text-xs font-bold transition-all"
+                >
+                  🔒 Reset to Locked
+                </button>
+              </>
             )}
           </div>
         </div>

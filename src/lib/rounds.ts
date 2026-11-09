@@ -200,7 +200,9 @@ export async function updateRoundState(
   extra?: { addMinutes?: number; duration_seconds?: number }
 ): Promise<RoundItem | null> {
   const list = getAllRounds();
-  const target = list.find((r) => r.id === roundId || String(r.round_number) === roundId);
+  const target = list.find(
+    (r) => r.id === roundId || String(r.round_number) === roundId || (r as any).uuid === roundId
+  );
   if (!target) return null;
 
   const now = new Date();
@@ -222,7 +224,8 @@ export async function updateRoundState(
     target.state = 'open';
     target.duration_seconds = duration;
     target.opened_at = now.toISOString();
-    target.deadline = new Date(now.getTime() + duration * 1000).toISOString();
+    target.closed_at = null;
+    target.deadline = new Date(now.getTime() + (extra?.addMinutes ? extra.addMinutes * 60 * 1000 : duration * 1000)).toISOString();
   } else if (newState === 'paused') {
     target.state = 'paused';
   } else if (newState === 'closed') {
@@ -233,6 +236,8 @@ export async function updateRoundState(
   } else if (newState === 'locked') {
     target.state = 'locked';
     target.deadline = null;
+    target.closed_at = null;
+    target.opened_at = null;
   }
 
   // Supabase write-through if active database is configured
@@ -257,6 +262,16 @@ export async function updateRoundState(
   if (!isMockUrl) {
     try {
       const { supabaseAdmin } = await import('./supabase/admin');
+      if (newState === 'open') {
+        await supabaseAdmin
+          .from('event_rounds')
+          .update({
+            state: 'closed',
+            closed_at: now.toISOString(),
+          })
+          .eq('state', 'open')
+          .neq('round_number', target.round_number);
+      }
       await supabaseAdmin
         .from('event_rounds')
         .update({
