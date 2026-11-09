@@ -284,8 +284,26 @@ export default function PlayArenaPage() {
     }, 1000);
   };
 
+  const handleBuyHint = async () => {
+    const nextHint = auctionHintsUsed + 1;
+    setAuctionHintsUsed(nextHint);
+    try {
+      await fetch(`/api/rounds/${activeRound.id}/hint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hintIndex: nextHint }),
+      });
+    } catch {
+      // ignore
+    }
+  };
+
   // Submit Handler calling real authoritative API
   const handleFinalSubmit = async () => {
+    if (activeRound.state !== 'open') {
+      setSubmitError('Round is closed — submissions locked.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
 
@@ -478,6 +496,36 @@ export default function PlayArenaPage() {
                     {submittedRounds[activeRound.id].score} / {activeRound.max_points} pts
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Check 3: Round Closed or Scored */}
+            {(activeRound.state === 'closed' || activeRound.state === 'scored') && !submittedRounds[activeRound.id] && (
+              <div className="neo-card p-12 text-center space-y-4 border-red-800/60 bg-red-950/20">
+                <div className="w-14 h-14 rounded-2xl bg-red-950/60 border border-red-600/40 text-red-400 flex items-center justify-center mx-auto text-2xl font-bold font-mono-code shadow-neo-btn">
+                  ⛔
+                </div>
+                <h3 className="text-xl font-bold text-white font-mono-code tracking-wide">
+                  Round is closed — submissions locked.
+                </h3>
+                <p className="text-xs text-typography-muted max-w-md mx-auto leading-relaxed">
+                  The official timer for Round {activeRound.round_number} has concluded and answers are no longer accepted by the server. Please wait for the organizer to publish scores and advance to the next round.
+                </p>
+              </div>
+            )}
+
+            {/* Check 4: Round Paused */}
+            {activeRound.state === 'paused' && !submittedRounds[activeRound.id] && (
+              <div className="neo-card p-12 text-center space-y-4 border-yellow-800/60 bg-yellow-950/20">
+                <div className="w-14 h-14 rounded-2xl bg-yellow-950/60 border border-yellow-600/40 text-yellow-400 flex items-center justify-center mx-auto text-2xl font-bold font-mono-code shadow-neo-btn">
+                  ⏸
+                </div>
+                <h3 className="text-xl font-bold text-white font-mono-code tracking-wide">
+                  Round Paused by Organizer
+                </h3>
+                <p className="text-xs text-typography-muted max-w-md mx-auto leading-relaxed">
+                  Competition timer is currently paused. Please wait for the organizer to resume the round.
+                </p>
               </div>
             )}
 
@@ -729,7 +777,7 @@ export default function PlayArenaPage() {
                         {auctionHintsUsed < 2 && (
                           <button
                             type="button"
-                            onClick={() => setAuctionHintsUsed((prev) => prev + 1)}
+                            onClick={handleBuyHint}
                             className="neo-btn px-3 py-1.5 text-xs text-amber-300"
                           >
                             Buy Hint {auctionHintsUsed + 1} (-50 pts)
@@ -863,11 +911,15 @@ export default function PlayArenaPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={submitting}
+                  disabled={submitting || activeRound.state !== 'open'}
                   onClick={handleFinalSubmit}
                   className="neo-btn-primary px-6 py-2 text-xs font-mono-code font-bold uppercase"
                 >
-                  {submitting ? 'Scoring On Server...' : 'Confirm & Finalize'}
+                  {submitting
+                    ? 'Scoring On Server...'
+                    : activeRound.state !== 'open'
+                    ? 'Round Closed'
+                    : 'Confirm & Finalize'}
                 </button>
               </div>
             </div>

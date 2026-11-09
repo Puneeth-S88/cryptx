@@ -42,6 +42,7 @@ export default function OrganizerDashboardPage() {
     duration_seconds: number;
   }>>([]);
   const [selectedRoundNumber, setSelectedRoundNumber] = useState<number>(1);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
 
   // Active round in Control Room
   const [currentRound, setCurrentRound] = useState<{
@@ -171,6 +172,9 @@ export default function OrganizerDashboardPage() {
         const data = await res.json();
         if (data.rounds && Array.isArray(data.rounds)) {
           setAllRounds(data.rounds);
+          if (data.submissionCounts) {
+            setSubmissionCounts(data.submissionCounts);
+          }
           const active = data.rounds.find((r: any) => r.round_number === selectedRoundNumber) || data.activeRound || data.rounds[0];
           if (active) {
             setCurrentRound((prev) => ({
@@ -840,7 +844,13 @@ Security Notice:
             <ControlRoomPanel
               eventId="20261111-0000-0000-0000-000000002026"
               round={currentRound}
-              stats={{ totalTeams: teams.length, submissionsReceived: Math.min(teams.length, 3) }}
+              stats={{
+                totalTeams: teams.length,
+                submissionsReceived:
+                  submissionCounts[currentRound.id] ??
+                  submissionCounts[`r${currentRound.round_number}`] ??
+                  0,
+              }}
               onStateChange={handleStateChange}
             />
 

@@ -138,6 +138,14 @@ export async function PATCH(request: NextRequest) {
 
       if (!isMockUrl) {
         try {
+          const { syncRoundQualifications } = await import('@/lib/supabase/sync');
+          const qualificationList = all.map((t, idx) => ({
+            teamId: t.code || t.id,
+            isQualified: qualifierIds.includes(t.id) || qualifierIds.includes(t.code),
+            rank: idx + 1,
+          }));
+          await syncRoundQualifications(currentRoundNumber, qualificationList);
+
           for (const t of all) {
             const isQualified = qualifierIds.includes(t.id) || qualifierIds.includes(t.code);
             await supabaseAdmin

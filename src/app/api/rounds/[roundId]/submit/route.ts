@@ -3,7 +3,7 @@ import { checkRateLimit } from '@/lib/ratelimit';
 import { createAuditLog } from '@/lib/audit';
 import { validateSession } from '@/lib/session';
 import { updateTeamScore } from '@/lib/teams';
-import { getRoundById } from '@/lib/rounds';
+import { getRoundById, getRoundByIdAsync } from '@/lib/rounds';
 import { getQuestionsForRound, getQuestionsForRoundAsync } from '@/lib/questions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { recordSubmissionAndScore } from '@/lib/supabase/sync';
@@ -169,22 +169,14 @@ export async function POST(
       );
     }
 
-    // 2. Round Lifecycle Gate
-    const serverRound = getRoundById(roundId);
-    if (serverRound && serverRound.state === 'locked') {
+    // 2. Round Lifecycle Gate (authoritatively queried from Supabase/event_rounds)
+    const serverRound = await getRoundByIdAsync(roundId);
+    if (!serverRound || serverRound.state !== 'open') {
+      const stateName = serverRound?.state || 'closed';
       return NextResponse.json(
         {
           success: false,
-          error: `Round ${serverRound.round_number} (${serverRound.title}) is locked. Awaiting kickoff by the organizer.`,
-        },
-        { status: 403 }
-      );
-    }
-    if (serverRound && serverRound.state === 'closed') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Round ${serverRound.round_number} (${serverRound.title}) is closed. Submissions are no longer accepted.`,
+          error: `Round ${serverRound ? serverRound.round_number : roundId} is ${stateName}. Submissions are strictly locked.`,
         },
         { status: 403 }
       );

@@ -183,6 +183,11 @@ export function getRoundById(id: string): RoundItem | undefined {
   return list.find((r) => r.id === id || String(r.round_number) === id);
 }
 
+export async function getRoundByIdAsync(id: string): Promise<RoundItem | undefined> {
+  const list = await getAllRoundsAsync();
+  return list.find((r) => r.id === id || String(r.round_number) === id || (r as any).uuid === id);
+}
+
 export function getActiveRound(): RoundItem {
   const list = getAllRounds();
   // Return the currently open round or the paused round, otherwise the first round
@@ -234,6 +239,20 @@ export async function updateRoundState(
   const isMockUrl =
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl && newState === 'scored') {
+    import('./supabase/sync').then(({ syncRoundQualifications }) => {
+      import('./teams').then(({ getAllTeams }) => {
+        const all = getAllTeams();
+        const activeQualifiers = all.map((t, idx) => ({
+          teamId: t.code || t.id,
+          isQualified: !t.is_eliminated,
+          rank: idx + 1,
+        }));
+        syncRoundQualifications(target.round_number, activeQualifiers).catch(() => {});
+      }).catch(() => {});
+    }).catch(() => {});
+  }
 
   if (!isMockUrl) {
     try {

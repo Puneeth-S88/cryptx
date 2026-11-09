@@ -13,10 +13,42 @@ export async function GET() {
     rounds.find((r) => r.state === 'paused') ||
     rounds[0];
 
+  const submissionCounts: Record<string, number> = {};
+
+  const isMockUrl =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl) {
+    try {
+      const { supabaseAdmin } = await import('@/lib/supabase/admin');
+      const { data: subData, error } = await supabaseAdmin
+        .from('submissions')
+        .select('round_id');
+
+      if (!error && subData) {
+        for (const s of subData) {
+          const rid = s.round_id;
+          submissionCounts[rid] = (submissionCounts[rid] || 0) + 1;
+        }
+
+        const { STATIC_ROUND_UUIDS } = await import('@/lib/supabase/sync');
+        for (const [roundNum, uuid] of Object.entries(STATIC_ROUND_UUIDS)) {
+          if (submissionCounts[uuid]) {
+            submissionCounts[`r${roundNum}`] = (submissionCounts[`r${roundNum}`] || 0) + submissionCounts[uuid];
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to query submissions count:', err);
+    }
+  }
+
   return NextResponse.json({
     success: true,
     rounds,
     activeRound,
+    submissionCounts,
   });
 }
 

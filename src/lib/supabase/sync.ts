@@ -246,6 +246,75 @@ export async function recordSubmissionAndScore(params: {
       console.error('Supabase submission insert error:', subErr);
     }
 
+    // 3. Insert/Upsert into `public.round_attempts`
+    try {
+      await supabaseAdmin.from('round_attempts').upsert(
+        {
+          round_id: roundInfo.roundUuid,
+          team_id: teamInfo.teamUuid,
+          completed_at: now,
+          score: params.score,
+          attempt_number: 1,
+          is_final_attempt: true,
+        },
+        { onConflict: 'round_id,team_id' }
+      );
+    } catch {
+      try {
+        await supabaseAdmin.from('round_attempts').upsert(
+          {
+            round_id: roundInfo.roundUuid,
+            team_id: teamInfo.teamUuid,
+            completed_at: now,
+          },
+          { onConflict: 'round_id,team_id' }
+        );
+      } catch {
+        // ignore schema mismatch
+      }
+    }
+
+    // 4. Record hint usage if submitted with hints (e.g. Round 6 Cipher Auction)
+    const hintsCount = Number(params.submissionPayload?.hintsUsed) || 0;
+    if (hintsCount > 0) {
+      const hintTexts = [
+        'Hint 1: This is a Rail Fence (zigzag) cipher with 2 rails.',
+        'Hint 2: Top rail holds M E D E T; Bottom rail holds E A W T A N.',
+      ];
+      for (let i = 1; i <= hintsCount; i++) {
+        try {
+          await supabaseAdmin.from('hint_usage').upsert(
+            {
+              round_id: roundInfo.roundUuid,
+              team_id: teamInfo.teamUuid,
+              hint_index: i,
+              hint_text: hintTexts[i - 1] || `Hint ${i}`,
+              points_deducted: 50,
+              penalty_applied: 50,
+              unlocked_at: now,
+            },
+            { onConflict: 'round_id,team_id,hint_index' }
+          );
+        } catch {
+          try {
+            await supabaseAdmin.from('hint_usage').upsert(
+              {
+                round_id: roundInfo.roundUuid,
+                team_id: teamInfo.teamUuid,
+                hint_index: i,
+                hint_text: hintTexts[i - 1] || `Hint ${i}`,
+                points_deducted: 50,
+                unlocked_at: now,
+              },
+              { onConflict: 'round_id,team_id,hint_index' }
+            );
+          } catch {
+            // ignore schema mismatch
+          }
+        }
+      }
+    }
+
     // Invalidate cached leaderboard and teams to reflect fresh scores
     if (globalThis.__cryptex_supabase_cache) {
       delete globalThis.__cryptex_supabase_cache.leaderboard;
@@ -703,6 +772,121 @@ export async function toggleLeaderboardFreezeInSupabase(freeze: boolean): Promis
     return true;
   } catch (err) {
     console.error('Error toggling leaderboard freeze in Supabase:', err);
+    return false;
+  }
+}
+
+/**
+ * Records advancing and eliminated teams into public.round_qualifications
+ */
+export async function syncRoundQualifications(
+  roundNumber: number,
+  qualifications: Array<{
+    teamId: string;
+    isQualified: boolean;
+    rank?: number;
+  }>
+): Promise<boolean> {
+  if (isMockSupabase()) return true;
+
+  try {
+    const now = new Date().toISOString();
+
+    for (const q of qualifications) {
+      const teamInfo = await resolveTeamInfo(q.teamId);
+      if (!teamInfo) continue;
+
+      try {
+        await supabaseAdmin.from('round_qualifications').upsert(
+          {
+            event_id: EVENT_ID,
+            round_number: roundNumber,
+            team_id: teamInfo.teamUuid,
+            qualified: q.isQualified,
+            is_qualified: q.isQualified,
+            rank_in_round: q.rank || null,
+            decided_at: now,
+          },
+          { onConflict: 'event_id,round_number,team_id' }
+        );
+      } catch {
+        try {
+          await supabaseAdmin.from('round_qualifications').upsert(
+            {
+              event_id: EVENT_ID,
+              round_number: roundNumber,
+              team_id: teamInfo.teamUuid,
+              qualified: q.isQualified,
+              decided_at: now,
+            },
+            { onConflict: 'event_id,round_number,team_id' }
+          );
+        } catch {
+          // ignore schema mismatch
+        }
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('syncRoundQualifications error:', err);
+    return false;
+  }
+}
+
+/**
+ * Records single hint unlock into public.hint_usage
+ */
+export async function recordHintUsage(params: {
+  teamIdOrCode: string;
+  roundIdOrNumber: string | number;
+  hintIndex: number;
+  hintText?: string;
+  penaltyApplied?: number;
+}): Promise<boolean> {
+  if (isMockSupabase()) return true;
+
+  try {
+    const roundInfo = await resolveRoundInfo(params.roundIdOrNumber);
+    const teamInfo = await resolveTeamInfo(params.teamIdOrCode);
+    if (!teamInfo) return false;
+
+    const now = new Date().toISOString();
+    const penalty = params.penaltyApplied ?? 50;
+    const text = params.hintText || `Hint ${params.hintIndex}`;
+
+    try {
+      await supabaseAdmin.from('hint_usage').upsert(
+        {
+          round_id: roundInfo.roundUuid,
+          team_id: teamInfo.teamUuid,
+          hint_index: params.hintIndex,
+          hint_text: text,
+          points_deducted: penalty,
+          penalty_applied: penalty,
+          unlocked_at: now,
+        },
+        { onConflict: 'round_id,team_id,hint_index' }
+      );
+    } catch {
+      try {
+        await supabaseAdmin.from('hint_usage').upsert(
+          {
+            round_id: roundInfo.roundUuid,
+            team_id: teamInfo.teamUuid,
+            hint_index: params.hintIndex,
+            hint_text: text,
+            points_deducted: penalty,
+            unlocked_at: now,
+          },
+          { onConflict: 'round_id,team_id,hint_index' }
+        );
+      } catch {
+        // ignore schema mismatch
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('recordHintUsage error:', err);
     return false;
   }
 }
