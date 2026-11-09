@@ -14,6 +14,7 @@ export async function GET() {
     rounds[0];
 
   const submissionCounts: Record<string, number> = {};
+  let totalTeams = 0;
 
   const isMockUrl =
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -36,19 +37,57 @@ export async function GET() {
         for (const [roundNum, uuid] of Object.entries(STATIC_ROUND_UUIDS)) {
           if (submissionCounts[uuid]) {
             submissionCounts[`r${roundNum}`] = (submissionCounts[`r${roundNum}`] || 0) + submissionCounts[uuid];
+            submissionCounts[String(roundNum)] = submissionCounts[`r${roundNum}`];
           }
         }
+      }
+
+      // Map dynamic event_rounds UUIDs
+      const { data: dbRounds } = await supabaseAdmin
+        .from('event_rounds')
+        .select('id, round_number');
+      if (dbRounds) {
+        for (const r of dbRounds) {
+          const count = submissionCounts[r.id] || 0;
+          if (count > 0) {
+            submissionCounts[`r${r.round_number}`] = count;
+            submissionCounts[String(r.round_number)] = count;
+          }
+        }
+      }
+
+      // Query total active teams
+      const { count: teamCount } = await supabaseAdmin
+        .from('teams')
+        .select('id', { count: 'exact', head: true });
+      if (typeof teamCount === 'number') {
+        totalTeams = teamCount;
       }
     } catch (err) {
       console.error('Failed to query submissions count:', err);
     }
   }
 
+  // Merge with in-memory counter if present
+  if ((globalThis as any).__cryptex_submission_counts) {
+    for (const [k, v] of Object.entries((globalThis as any).__cryptex_submission_counts as Record<string, number>)) {
+      submissionCounts[k] = Math.max(submissionCounts[k] || 0, v);
+    }
+  }
+
+  const activeRoundSubmissions = activeRound
+    ? (submissionCounts[activeRound.id] ?? submissionCounts[`r${activeRound.round_number}`] ?? submissionCounts[String(activeRound.round_number)] ?? 0)
+    : 0;
+
   return NextResponse.json({
     success: true,
     rounds,
     activeRound,
     submissionCounts,
+    stats: {
+      totalTeams,
+      submissionsReceived: activeRoundSubmissions,
+    },
   });
 }
 

@@ -91,6 +91,31 @@ export async function resolveRoundInfo(roundIdOrNumber: string | number): Promis
     roundNumber = parseInt(clean, 10) || 1;
   }
 
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isUuid = uuidRegex.test(clean);
+
+  // If connected to Supabase, query the actual event_rounds table to get the true authoritative UUID
+  if (!isMockSupabase()) {
+    try {
+      let query = supabaseAdmin.from('event_rounds').select('id, round_number');
+      if (isUuid) {
+        query = query.eq('id', clean);
+      } else {
+        query = query.eq('round_number', roundNumber);
+      }
+      const { data: dbRound } = await query.maybeSingle();
+      if (dbRound) {
+        return {
+          roundNumber: dbRound.round_number,
+          roundUuid: dbRound.id,
+          roundKey: `r${dbRound.round_number}`,
+        };
+      }
+    } catch (err) {
+      console.error('Error resolving round from Supabase:', err);
+    }
+  }
+
   // Check static seed mapping
   if (STATIC_ROUND_UUIDS[roundNumber]) {
     return {
@@ -101,8 +126,7 @@ export async function resolveRoundInfo(roundIdOrNumber: string | number): Promis
   }
 
   // If already a valid UUID format
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(clean)) {
+  if (isUuid) {
     const cached = globalThis.__cryptex_supabase_cache?.rounds?.data;
     const match = cached?.find((r) => r.id.toLowerCase() === clean);
     if (match) {
@@ -320,6 +344,14 @@ export async function recordSubmissionAndScore(params: {
       delete globalThis.__cryptex_supabase_cache.leaderboard;
       delete globalThis.__cryptex_supabase_cache.teams;
     }
+
+    if (!(globalThis as any).__cryptex_submission_counts) {
+      (globalThis as any).__cryptex_submission_counts = {};
+    }
+    const memCounts = (globalThis as any).__cryptex_submission_counts as Record<string, number>;
+    memCounts[roundInfo.roundUuid] = (memCounts[roundInfo.roundUuid] || 0) + 1;
+    memCounts[`r${roundInfo.roundNumber}`] = (memCounts[`r${roundInfo.roundNumber}`] || 0) + 1;
+    memCounts[String(roundInfo.roundNumber)] = memCounts[`r${roundInfo.roundNumber}`];
 
     return !scoreErr;
   } catch (err) {

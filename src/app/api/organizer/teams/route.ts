@@ -123,7 +123,23 @@ export async function PATCH(request: NextRequest) {
     // Bulk qualifier confirmation across all teams
     if (action === 'qualify' || Array.isArray(body.qualifierTeamIds)) {
       const qualifierIds: string[] = Array.isArray(body.qualifierTeamIds) ? body.qualifierTeamIds : [];
-      const all = getAllTeams();
+      let all = getAllTeams();
+
+      const isMockUrl =
+        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+      if (!isMockUrl) {
+        try {
+          const dbTeams = await fetchTeamsWithScoresFromSupabase();
+          if (dbTeams && dbTeams.length > 0) {
+            all = dbTeams;
+          }
+        } catch (dbErr) {
+          console.error('Failed to load DB teams for qualifiers:', dbErr);
+        }
+      }
+
       for (const t of all) {
         const isQualified = qualifierIds.includes(t.id) || qualifierIds.includes(t.code);
         updateTeam(t.id, {
@@ -131,10 +147,6 @@ export async function PATCH(request: NextRequest) {
           eliminated_after_round: !isQualified ? currentRoundNumber : null,
         });
       }
-
-      const isMockUrl =
-        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
 
       if (!isMockUrl) {
         try {

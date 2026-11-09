@@ -849,6 +849,7 @@ Security Notice:
                 submissionsReceived:
                   submissionCounts[currentRound.id] ??
                   submissionCounts[`r${currentRound.round_number}`] ??
+                  submissionCounts[String(currentRound.round_number)] ??
                   0,
               }}
               onStateChange={handleStateChange}

@@ -170,13 +170,41 @@ export async function POST(
     }
 
     // 2. Round Lifecycle Gate (authoritatively queried from Supabase/event_rounds)
-    const serverRound = await getRoundByIdAsync(roundId);
-    if (!serverRound || serverRound.state !== 'open') {
-      const stateName = serverRound?.state || 'closed';
+    const isMock =
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+    let roundState: string | undefined;
+
+    if (!isMock) {
+      const clean = String(roundId).trim();
+      let query = supabaseAdmin.from('event_rounds').select('id, round_number, state');
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(clean)) {
+        query = query.eq('id', clean);
+      } else if (clean.toLowerCase().startsWith('r')) {
+        const num = parseInt(clean.slice(1), 10);
+        query = query.eq('round_number', num);
+      } else if (/^\d+$/.test(clean)) {
+        query = query.eq('round_number', parseInt(clean, 10));
+      } else {
+        query = query.eq('id', clean);
+      }
+      const { data: dbRound } = await query.maybeSingle();
+      if (dbRound) {
+        roundState = dbRound.state;
+      }
+    }
+
+    if (!roundState) {
+      const serverRound = await getRoundByIdAsync(roundId);
+      roundState = serverRound?.state;
+    }
+
+    if (roundState !== 'open') {
       return NextResponse.json(
         {
           success: false,
-          error: `Round ${serverRound ? serverRound.round_number : roundId} is ${stateName}. Submissions are strictly locked.`,
+          error: 'Round is closed or locked. Submissions are no longer accepted.',
         },
         { status: 403 }
       );

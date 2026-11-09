@@ -467,6 +467,21 @@ export default function PlayArenaPage() {
               </div>
             </div>
 
+            {/* Prominent Status Banner if Round is Closed/Locked/Scored */}
+            {(activeRound.state === 'closed' || activeRound.state === 'locked' || activeRound.state === 'scored') && (
+              <div className="p-4 rounded-xl bg-red-950/50 border border-red-500/50 flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <div className="font-mono-code">
+                  <span className="text-sm font-bold text-red-200 block">
+                    Round is closed — submissions locked.
+                  </span>
+                  <span className="text-xs text-red-300/80">
+                    Round {activeRound.round_number} is currently {activeRound.state}. Submissions are strictly disabled.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Check 1: Round Locked */}
             {activeRound.state === 'locked' && (
               <div className="neo-card p-12 text-center space-y-4">
