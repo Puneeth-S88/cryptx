@@ -10,7 +10,6 @@ import { QualificationTable } from '@/components/organizer/QualificationTable';
 import { RoundBuilderDashboard } from '@/components/organizer/RoundBuilderDashboard';
 import { QuestionBuilder, type QuestionDraft } from '@/components/organizer/QuestionBuilder';
 import { SpecialRoundEditor, type SpecialRoundContentConfig } from '@/components/organizer/SpecialRoundEditor';
-import { PasswordGateModal } from '@/components/organizer/PasswordGateModal';
 import type { TeamLeaderboardEntry } from '@/lib/crypto/tie-break';
 import type { RoundType } from '@/lib/crypto/schemas';
 
@@ -33,9 +32,6 @@ export default function OrganizerDashboardPage() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<'control' | 'builder' | 'qualify' | 'teams' | 'audit'>('control');
-  const [elevatedToken, setElevatedToken] = useState<string | null>(null);
-  const [showGate, setShowGate] = useState(false);
-  const [gatePendingAction, setGatePendingAction] = useState<(() => Promise<void>) | null>(null);
 
   const [allRounds, setAllRounds] = useState<Array<{
     id: string;
@@ -274,14 +270,9 @@ export default function OrganizerDashboardPage() {
     }
   };
 
-  // Elevation assertion
+  // Direct action execution (elevation password gate removed for seamless organizer control)
   const requireElevation = (action: () => Promise<void>) => {
-    if (elevatedToken) {
-      action();
-    } else {
-      setGatePendingAction(() => action);
-      setShowGate(true);
-    }
+    action();
   };
 
   const handleStateChange = async (newState: string, extra?: Record<string, unknown>) => {
@@ -725,21 +716,10 @@ Security Notice:
                 <h1 className="text-2xl font-extrabold text-white font-mono-code">
                   CRYPTEX 2026 ORGANIZER CONSOLE
                 </h1>
-                {elevatedToken ? (
-                  <span className="text-[10px] font-mono-code px-2 py-0.5 rounded bg-green-950/60 text-green-300 border border-green-700/40 font-bold uppercase flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    ELEVATED SESSION ACTIVE
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowGate(true)}
-                    className="text-[10px] font-mono-code px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-700/40 font-bold uppercase hover:bg-amber-900/60 transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    CONTROLS LOCKED — ELEVATE
-                  </button>
-                )}
+                <span className="text-[10px] font-mono-code px-2 py-0.5 rounded bg-blue-950/60 text-blue-300 border border-blue-700/40 font-bold uppercase flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  FULL COMMAND ACCESS
+                </span>
               </div>
               <p className="text-xs font-mono-code text-typography-muted mt-0.5">
                 Official Command Room • DFL04 • Venue Coordinators: Prajwal B U & Puneeth S
@@ -1669,19 +1649,6 @@ Security Notice:
       </main>
 
       <Footer />
-
-      <PasswordGateModal
-        isOpen={showGate}
-        onSuccess={(tok) => {
-          setElevatedToken(tok);
-          if (gatePendingAction) {
-            gatePendingAction();
-            setGatePendingAction(null);
-          }
-        }}
-        onClose={() => setShowGate(false)}
-        eventId="20261111-0000-0000-0000-000000002026"
-      />
     </div>
   );
 }
