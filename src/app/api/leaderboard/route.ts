@@ -4,7 +4,7 @@ import { getAllTeams } from '@/lib/teams';
 import { rankTeamsWithTieBreak, type TeamLeaderboardEntry } from '@/lib/crypto/tie-break';
 import { parseAndVerifyToken } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit';
-import { toggleLeaderboardFreezeInSupabase, EVENT_ID } from '@/lib/supabase/sync';
+import { toggleLeaderboardFreezeInSupabase, fetchTeamsWithScoresFromSupabase, EVENT_ID } from '@/lib/supabase/sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,22 +15,53 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
 
     if (!isMockUrl) {
-      // 1. Fetch default event ID & freeze status
+      // 1. Fetch event freeze status
       const { data: event } = await supabaseAdmin
         .from('events')
         .select('id, is_leaderboard_frozen')
-        .eq('slug', 'cryptex-2026')
-        .single();
+        .or(`slug.eq.cryptex-2026,id.eq.${EVENT_ID}`)
+        .maybeSingle();
 
-      if (event) {
-        // 2. Call authoritative get_event_leaderboard RPC
-        const { data: rpcData, error } = await supabaseAdmin.rpc('get_event_leaderboard', {
-          p_event_id: event.id,
-        });
+      const isFrozen = Boolean(event?.is_leaderboard_frozen);
 
-        if (!error && rpcData && Array.isArray(rpcData.leaderboard) && rpcData.leaderboard.length > 0) {
-          return NextResponse.json(rpcData);
+      // 2. If frozen, return the frozen snapshot
+      if (isFrozen) {
+        const { data: frozenSnap } = await supabaseAdmin
+          .from('leaderboard_frozen_snapshot')
+          .select('snapshot_data')
+          .eq('event_id', EVENT_ID)
+          .order('frozen_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (frozenSnap?.snapshot_data && Array.isArray(frozenSnap.snapshot_data) && frozenSnap.snapshot_data.length > 0) {
+          return NextResponse.json({
+            frozen: true,
+            leaderboard: frozenSnap.snapshot_data,
+          });
         }
+      }
+
+      // 3. Fetch live teams with authoritative scores directly from Supabase
+      const dbTeams = await fetchTeamsWithScoresFromSupabase();
+      if (dbTeams && dbTeams.length > 0) {
+        const entries: TeamLeaderboardEntry[] = dbTeams.map((t, idx) => ({
+          rank: idx + 1,
+          team_id: t.id,
+          team_name: t.name,
+          total_score: t.total_score,
+          latest_round_score: t.latest_round_score,
+          per_round_scores: t.per_round_scores || {},
+          is_eliminated: t.is_eliminated,
+          eliminated_after_round: t.eliminated_after_round,
+          last_submission_time: t.last_submission_time,
+        }));
+
+        const ranked = rankTeamsWithTieBreak(entries, 8);
+        return NextResponse.json({
+          frozen: isFrozen,
+          leaderboard: ranked,
+        });
       }
     }
 

@@ -598,7 +598,8 @@ export async function fetchTeamsWithScoresFromSupabase(): Promise<any[] | null> 
     const scoreMap: Record<string, { total: number; latest: number; perRound: Record<string, { points: number }>; lastSub: string | null }> = {};
 
     if (dbScores && Array.isArray(dbScores)) {
-      for (const s of dbScores) {
+      const sortedScores = [...dbScores].sort((a, b) => (a.round_number || 0) - (b.round_number || 0));
+      for (const s of sortedScores) {
         if (!scoreMap[s.team_id]) {
           scoreMap[s.team_id] = { total: 0, latest: 0, perRound: {}, lastSub: null };
         }
