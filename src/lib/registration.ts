@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { EVENT_ID } from '@/lib/supabase/sync';
 import {
   registerNewTeam,
   generateAutoPassword,
@@ -154,11 +155,11 @@ export async function registerTeamAccount(params: RegisterTeamParams): Promise<R
       // 5. Bcrypt-hash password for storage in public.teams
       const passwordHash = await bcrypt.hash(assignedPassword, 10);
 
-      // 6. Insert team record into public.teams
+      // 6. Insert team record into public.teams using supabaseAdmin (bypasses RLS)
       const { data: insertedTeam, error: insertErr } = await supabaseAdmin
         .from('teams')
         .insert({
-          event_id: '20261111-0000-0000-0000-000000002026',
+          event_id: EVENT_ID,
           name,
           join_code: assignedCode,
           captain_id: captainUserId || null,
@@ -177,6 +178,14 @@ export async function registerTeamAccount(params: RegisterTeamParams): Promise<R
         // Rollback created auth user if we just created it
         if (createdAuthUserLocally && captainUserId) {
           await supabaseAdmin.auth.admin.deleteUser(captainUserId).catch(() => {});
+        }
+
+        if (insertErr.code === '42501' || insertErr.message?.includes('violates row-level security policy')) {
+          return {
+            success: false,
+            error:
+              'Database RLS permission denied: SUPABASE_SERVICE_ROLE_KEY is missing or invalid in server/Vercel environment.',
+          };
         }
 
         if (insertErr.code === '23505') {

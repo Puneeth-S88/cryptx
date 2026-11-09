@@ -104,12 +104,19 @@ CREATE POLICY "Captains and members can view own team"
     )
   );
 
-CREATE POLICY "Participants can create teams during registration"
+CREATE POLICY "Allow team creation by captains and organizers"
   ON public.teams FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL AND captain_id = auth.uid());
+  WITH CHECK (
+    public.is_admin_or_organizer() OR
+    (auth.uid() IS NOT NULL AND captain_id = auth.uid())
+  );
 
 CREATE POLICY "Captains and Organizers can update team"
   ON public.teams FOR UPDATE
+  USING (captain_id = auth.uid() OR public.is_admin_or_organizer());
+
+CREATE POLICY "Captains and Organizers can delete team"
+  ON public.teams FOR DELETE
   USING (captain_id = auth.uid() OR public.is_admin_or_organizer());
 
 -- 4b. SANITIZED PUBLIC TEAMS VIEW (Zero Credential Leakage)
