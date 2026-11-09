@@ -60,6 +60,24 @@ describe('Single Device Session Enforcement', () => {
     expect(val.session?.accountName).toBe('Gamma Team');
     expect(getActiveSession('team_gamma')?.sessionId).toBe(session.sessionId);
   });
+
+  it('exempts organizer accounts from single-device superseded lockouts across tabs', () => {
+    const orgTab1 = createSession({
+      id: 'org_prajwal',
+      name: 'Prajwal B U',
+      role: 'organizer',
+    });
+
+    const orgTab2 = createSession({
+      id: 'org_prajwal',
+      name: 'Prajwal B U',
+      role: 'organizer',
+    });
+
+    // Both sessions remain valid simultaneously without kicking out either tab
+    expect(validateSession(orgTab1.token).valid).toBe(true);
+    expect(validateSession(orgTab2.token).valid).toBe(true);
+  });
 });
 
 describe('Real-Time Announcement Dispatcher', () => {

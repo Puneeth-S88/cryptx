@@ -273,3 +273,94 @@ export async function updateRoundState(
 
   return target;
 }
+
+export async function createRoundAsync(roundData: {
+  round_number?: number;
+  title: string;
+  topic?: string;
+  round_type?: RoundItem['round_type'];
+  duration_seconds?: number;
+  max_points?: number;
+  state?: RoundItem['state'];
+  order_index?: number;
+  qualification_note?: string;
+}): Promise<RoundItem> {
+  const list = getAllRounds();
+  const nextNumber =
+    roundData.round_number ||
+    (list.length > 0 ? Math.max(...list.map((r) => r.round_number)) + 1 : 1);
+  const id = `r${nextNumber}`;
+
+  const newRound: RoundItem = {
+    id,
+    round_number: nextNumber,
+    title: roundData.title.trim(),
+    topic: roundData.topic?.trim() || '',
+    round_type: roundData.round_type || 'standard',
+    state: roundData.state || 'locked',
+    duration_seconds: roundData.duration_seconds || 600,
+    max_points: roundData.max_points || 100,
+    deadline: null,
+    is_qualified: true,
+  };
+
+  list.push(newRound);
+  globalThis.__cryptex_rounds = list;
+
+  const isMockUrl =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl) {
+    try {
+      const { supabaseAdmin } = await import('./supabase/admin');
+      const { EVENT_ID } = await import('./supabase/sync');
+      await supabaseAdmin.from('event_rounds').insert({
+        event_id: EVENT_ID,
+        round_number: nextNumber,
+        title: newRound.title,
+        topic: newRound.topic,
+        round_type: newRound.round_type,
+        puzzle_type: newRound.round_type === 'standard' ? 'mcq' : newRound.round_type,
+        state: newRound.state,
+        duration_seconds: newRound.duration_seconds,
+        max_points: newRound.max_points,
+        order_index: roundData.order_index ?? nextNumber,
+      });
+    } catch (err) {
+      console.error('Supabase createRoundAsync error:', err);
+    }
+  }
+
+  return newRound;
+}
+
+export async function deleteRoundAsync(roundId: string): Promise<boolean> {
+  const list = getAllRounds();
+  const index = list.findIndex(
+    (r) => r.id === roundId || String(r.round_number) === roundId
+  );
+  if (index === -1) return false;
+
+  const target = list[index];
+  list.splice(index, 1);
+  globalThis.__cryptex_rounds = list;
+
+  const isMockUrl =
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock.supabase.co');
+
+  if (!isMockUrl) {
+    try {
+      const { supabaseAdmin } = await import('./supabase/admin');
+      await supabaseAdmin
+        .from('event_rounds')
+        .delete()
+        .eq('round_number', target.round_number);
+    } catch (err) {
+      console.error('Supabase deleteRoundAsync error:', err);
+    }
+  }
+
+  return true;
+}

@@ -92,7 +92,7 @@ export function parseAndVerifyToken(token: string, secret?: string): SessionToke
     const json = Buffer.from(base64, 'base64url').toString('utf8');
     const payload = JSON.parse(json) as SessionTokenPayload;
     const now = Date.now();
-    if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 300_000) {
+    if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 900_000) {
       return null;
     }
     return payload;
@@ -162,7 +162,7 @@ export async function verifySessionTokenEdge(
 
     if (typeof payload.createdAt === 'number') {
       const now = Date.now();
-      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 300_000) {
+      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 900_000) {
         return { valid: false };
       }
     }
@@ -243,6 +243,21 @@ export function validateSession(token: string): SessionValidationResult {
     };
   }
 
+  // Organizers are completely exempt from single-device restrictions
+  if (payload.role === 'organizer') {
+    const orgSession: ActiveSession = {
+      sessionId: payload.sessionId,
+      accountId: payload.accountId,
+      accountName: payload.name,
+      role: 'organizer',
+      teamId: payload.teamId,
+      createdAt: payload.createdAt,
+      lastActiveAt: Date.now(),
+    };
+    activeSessions.set(payload.accountId, orgSession);
+    return { valid: true, session: orgSession };
+  }
+
   const current = activeSessions.get(payload.accountId);
 
   if (!current) {
@@ -259,9 +274,25 @@ export function validateSession(token: string): SessionValidationResult {
     return { valid: true, session: hydratedSession };
   }
 
-  // SINGLE-DEVICE CHECK:
-  // If the stored active sessionId differs from this token's sessionId, a newer device logged in.
+  // SINGLE-DEVICE CHECK FOR PARTICIPANTS:
   if (current.sessionId !== payload.sessionId) {
+    // If incoming token was created at or after current stored session,
+    // this is a newer authoritative login on another/same device.
+    if (payload.createdAt >= current.createdAt) {
+      const updatedSession: ActiveSession = {
+        sessionId: payload.sessionId,
+        accountId: payload.accountId,
+        accountName: payload.name,
+        role: payload.role,
+        teamId: payload.teamId,
+        createdAt: payload.createdAt,
+        lastActiveAt: Date.now(),
+      };
+      activeSessions.set(payload.accountId, updatedSession);
+      return { valid: true, session: updatedSession };
+    }
+
+    // Incoming token is strictly older than current in-memory session -> superseded
     return {
       valid: false,
       superseded: true,

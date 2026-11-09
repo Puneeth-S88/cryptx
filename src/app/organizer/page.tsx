@@ -926,101 +926,92 @@ Security Notice:
             {!builderSelectedRoundId ? (
               <RoundBuilderDashboard
                 eventId="20261111-0000-0000-0000-000000002026"
-                rounds={[
-                  {
-                    id: 'r1',
-                    round_number: 1,
-                    title: 'The Secret Code',
-                    topic: 'MCQ & Classical Concepts',
-                    round_type: 'standard',
-                    duration_seconds: 600,
-                    max_points: 100,
-                    state: 'open',
-                    order_index: 1,
-                  },
-                  {
-                    id: 'r2',
-                    round_number: 2,
-                    title: 'Cipher Breakers',
-                    topic: 'Caesar, Atbash, Binary',
-                    round_type: 'standard',
-                    duration_seconds: 600,
-                    max_points: 150,
-                    state: 'locked',
-                    order_index: 2,
-                  },
-                  {
-                    id: 'r3',
-                    round_number: 3,
-                    title: 'Code Grid',
-                    topic: 'Polybius Coordinate Decryption',
-                    round_type: 'polybius',
-                    duration_seconds: 600,
-                    max_points: 150,
-                    state: 'locked',
-                    order_index: 3,
-                  },
-                  {
-                    id: 'r4',
-                    round_number: 4,
-                    title: 'Cipher Scramble',
-                    topic: 'Cryptographic Anagrams',
-                    round_type: 'scramble',
-                    duration_seconds: 600,
-                    max_points: 150,
-                    state: 'locked',
-                    order_index: 4,
-                  },
-                  {
-                    id: 'r5',
-                    round_number: 5,
-                    title: 'Memory Cipher',
-                    topic: 'Timed Key Memorization & Decoding',
-                    round_type: 'memory',
-                    duration_seconds: 600,
-                    max_points: 200,
-                    state: 'locked',
-                    order_index: 5,
-                  },
-                  {
-                    id: 'r6',
-                    round_number: 6,
-                    title: 'Cipher Auction',
-                    topic: 'Rail Fence with Point Bidding',
-                    round_type: 'auction',
-                    duration_seconds: 600,
-                    max_points: 200,
-                    state: 'locked',
-                    order_index: 6,
-                  },
-                  {
-                    id: 'r7',
-                    round_number: 7,
-                    title: 'Colour Cipher',
-                    topic: 'Baconian Steganography (Blue/Orange)',
-                    round_type: 'colour',
-                    duration_seconds: 600,
-                    max_points: 200,
-                    state: 'locked',
-                    order_index: 7,
-                  },
-                  {
-                    id: 'r8',
-                    round_number: 8,
-                    title: 'Master Cryptanalyst',
-                    topic: 'Vigenere Polyalphabetic & Proof',
-                    round_type: 'vigenere',
-                    duration_seconds: 900,
-                    max_points: 300,
-                    state: 'locked',
-                    order_index: 8,
-                  },
-                ]}
+                rounds={allRounds.map((r, idx) => ({
+                  id: r.id,
+                  round_number: r.round_number,
+                  title: r.title,
+                  topic: (r as any).topic || '',
+                  round_type: ((r as any).round_type || 'standard') as any,
+                  duration_seconds: r.duration_seconds || 600,
+                  max_points: (r as any).max_points || 100,
+                  state: r.state,
+                  order_index: (r as any).order_index ?? idx + 1,
+                  qualification_note: (r as any).qualification_note || 'Top teams advance.',
+                }))}
                 onSelectRound={(id) => setBuilderSelectedRoundId(id)}
-                onCreateRound={async () => {}}
-                onDeleteRound={async () => {}}
-                onDuplicateRound={async () => {}}
-                onReorderRounds={async () => {}}
+                onCreateRound={async (newRound) => {
+                  try {
+                    const res = await fetch('/api/rounds', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(newRound),
+                    });
+                    if (res.ok) {
+                      await fetchRounds();
+                    } else {
+                      const data = await res.json().catch(() => ({}));
+                      alert(data.error || 'Failed to create round.');
+                    }
+                  } catch (err) {
+                    console.error('Failed to create round', err);
+                  }
+                }}
+                onDeleteRound={async (roundId) => {
+                  try {
+                    const res = await fetch(`/api/rounds?roundId=${roundId}`, {
+                      method: 'DELETE',
+                    });
+                    if (res.ok) {
+                      await fetchRounds();
+                    } else {
+                      const data = await res.json().catch(() => ({}));
+                      alert(data.error || 'Failed to delete round.');
+                    }
+                  } catch (err) {
+                    console.error('Failed to delete round', err);
+                  }
+                }}
+                onDuplicateRound={async (roundId) => {
+                  const target = allRounds.find((r) => r.id === roundId);
+                  if (!target) return;
+                  try {
+                    const res = await fetch('/api/rounds', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        title: `${target.title} (Copy)`,
+                        topic: (target as any).topic || '',
+                        round_type: (target as any).round_type || 'standard',
+                        duration_seconds: target.duration_seconds || 600,
+                        max_points: (target as any).max_points || 100,
+                        state: 'locked',
+                        order_index: allRounds.length + 1,
+                      }),
+                    });
+                    if (res.ok) {
+                      await fetchRounds();
+                    } else {
+                      const data = await res.json().catch(() => ({}));
+                      alert(data.error || 'Failed to duplicate round.');
+                    }
+                  } catch (err) {
+                    console.error('Failed to duplicate round', err);
+                  }
+                }}
+                onReorderRounds={async (reorderedIds) => {
+                  try {
+                    const res = await fetch('/api/rounds', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'reorder', orderedIds: reorderedIds }),
+                    });
+                    if (res.ok) {
+                      await fetchRounds();
+                    }
+                  } catch (err) {
+                    console.error('Failed to reorder rounds', err);
+                  }
+                }}
                 requireElevation={requireElevation}
               />
             ) : (

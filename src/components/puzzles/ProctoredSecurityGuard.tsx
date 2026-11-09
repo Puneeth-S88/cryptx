@@ -19,12 +19,17 @@ export function ProctoredSecurityGuard({
   const [isBreached, setIsBreached] = useState(false);
   const [breachReason, setBreachReason] = useState<string | null>(null);
   const [warningToast, setWarningToast] = useState<string | null>(null);
+  const [warningCount, setWarningCount] = useState(0);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
   const [mounted, setMounted] = useState(false);
 
   // Mutable refs to prevent stale closure access in window event listeners
   const hasEnteredRef = useRef(false);
   const isBreachedRef = useRef(false);
+  const warningCountRef = useRef(0);
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_WARNINGS = 3;
 
   const showToast = useCallback((message: string) => {
     if (toastTimerRef.current) {
@@ -43,17 +48,6 @@ export function ProctoredSecurityGuard({
       setIsBreached(true);
       setBreachReason(reason);
 
-      // Invalidate server session immediately
-      try {
-        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-          navigator.sendBeacon('/api/auth/logout');
-        } else {
-          fetch('/api/auth/logout', { method: 'POST', keepalive: true }).catch(() => {});
-        }
-      } catch {
-        // network failure fallback
-      }
-
       // Exit fullscreen if active
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
@@ -64,6 +58,23 @@ export function ProctoredSecurityGuard({
       }
     },
     [onBreach]
+  );
+
+  const handleSecurityWarning = useCallback(
+    (reason: string) => {
+      if (isBreachedRef.current) return;
+      const nextCount = warningCountRef.current + 1;
+      warningCountRef.current = nextCount;
+      setWarningCount(nextCount);
+      setWarningMessage(reason);
+
+      if (nextCount > MAX_WARNINGS) {
+        triggerBreach(`Maximum warnings exceeded (${MAX_WARNINGS}/${MAX_WARNINGS}): ${reason}`);
+      } else {
+        setShowWarningModal(true);
+      }
+    },
+    [triggerBreach]
   );
 
   // Request fullscreen with browser compatibility fallbacks
@@ -193,28 +204,27 @@ export function ProctoredSecurityGuard({
       }
     };
 
-    // 5. Fullscreen Change Monitor (Logout if exit fullscreen)
+    // 5. Fullscreen Change Monitor (Display warning modal if exited)
     const handleFullscreenChange = () => {
       const isFull = checkCurrentFullscreen();
       setIsFullscreen(isFull);
 
-      // If user had entered fullscreen and now exited, trigger breach logout!
       if (!isFull && hasEnteredRef.current && !isBreachedRef.current) {
-        triggerBreach('Exited fullscreen mode during active competition.');
+        handleSecurityWarning('Exited fullscreen mode during active competition.');
       }
     };
 
     // 6. Tab Switch / Window Minimize Monitor
     const handleVisibilityChange = () => {
       if (document.hidden && hasEnteredRef.current && !isBreachedRef.current) {
-        triggerBreach('Tab switch or browser minimization detected.');
+        handleSecurityWarning('Tab switch or browser minimization detected.');
       }
     };
 
     // 7. Window Blur Monitor (Lost focus to another app or window)
     const handleWindowBlur = () => {
       if (hasEnteredRef.current && !isBreachedRef.current) {
-        triggerBreach('Application lost focus (switched to another window or desktop).');
+        handleSecurityWarning('Application lost focus (switched to another window or desktop).');
       }
     };
 
@@ -227,7 +237,7 @@ export function ProctoredSecurityGuard({
           const heightDelta = window.outerHeight - window.innerHeight;
           // When DevTools is docked inside a fullscreen browser window, inner dims shrink > 160px
           if (widthDelta > 160 || heightDelta > 160) {
-            triggerBreach('Developer Tools console dock detected.');
+            handleSecurityWarning('Developer Tools console dock detected.');
           }
         }
       }
@@ -266,7 +276,7 @@ export function ProctoredSecurityGuard({
       clearInterval(devToolsCheckInterval);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
-  }, [triggerBreach, showToast]);
+  }, [triggerBreach, handleSecurityWarning, showToast]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-surface-dark" />;
@@ -437,6 +447,49 @@ export function ProctoredSecurityGuard({
               className="text-typography-muted hover:text-white px-2 py-0.5 text-xs font-bold"
             >
               ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Halting Warning Modal Overlay */}
+      {showWarningModal && !isBreached && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/92 backdrop-blur-md p-4 sm:p-6 select-none font-sans">
+          <div className="max-w-md w-full neo-card p-6 border-amber-600/80 bg-surface-card text-center space-y-5 shadow-2xl relative">
+            <div className="w-16 h-16 rounded-2xl bg-amber-950/80 border border-amber-600/70 text-amber-400 mx-auto flex items-center justify-center text-3xl shadow-neo-btn">
+              ⚠️
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono-code font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-700/60 inline-block">
+                Security Warning ({warningCount} of {MAX_WARNINGS})
+              </span>
+              <h3 className="text-xl font-extrabold text-white font-mono-code">
+                Gameplay Paused
+              </h3>
+              <p className="text-xs text-typography-muted font-mono-code">
+                {warningMessage || 'Window focus or fullscreen was lost.'}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-surface-dark border border-surface-border text-left space-y-2 font-mono-code text-xs">
+              <p className="text-amber-200">
+                • Competition rules require maintaining active fullscreen focus.
+              </p>
+              <p className="text-typography-muted">
+                • You have <strong className="text-white">{Math.max(0, MAX_WARNINGS - warningCount)}</strong> warning(s) remaining before automatic disqualification.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await handleEnterFullscreen();
+                setShowWarningModal(false);
+              }}
+              className="w-full neo-btn-primary py-3 text-xs font-mono-code font-bold uppercase tracking-wider text-white bg-amber-600 hover:bg-amber-500 border-amber-400 transition-all shadow-neo-btn"
+            >
+              Resume Test in Fullscreen ⛶
             </button>
           </div>
         </div>

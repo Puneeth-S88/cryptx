@@ -107,6 +107,28 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
+
+    // Handle reorder
+    if (body.action === 'reorder' && Array.isArray(body.orderedIds)) {
+      const list = getAllRounds();
+      const idMap = new Map(list.map((r) => [r.id, r]));
+      const reordered: typeof list = [];
+      body.orderedIds.forEach((id: string, idx: number) => {
+        const item = idMap.get(id);
+        if (item) {
+          (item as any).order_index = idx + 1;
+          reordered.push(item);
+        }
+      });
+      list.forEach((r) => {
+        if (!reordered.includes(r)) {
+          reordered.push(r);
+        }
+      });
+      globalThis.__cryptex_rounds = reordered;
+      return NextResponse.json({ success: true, rounds: reordered });
+    }
+
     const { roundId, state, duration_seconds, addMinutes } = body;
 
     if (!roundId || !state) {
@@ -163,6 +185,100 @@ export async function PATCH(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message || 'Failed to update round state.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const token =
+      request.cookies.get('cryptex_session')?.value ||
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized: Session required.' }, { status: 401 });
+    }
+
+    const payload = parseAndVerifyToken(token);
+    if (!payload || payload.role !== 'organizer') {
+      return NextResponse.json({ error: 'Forbidden: Organizer privilege required.' }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    if (!body.title || !body.title.trim()) {
+      return NextResponse.json({ success: false, error: 'Round title is required.' }, { status: 400 });
+    }
+
+    const { createRoundAsync } = await import('@/lib/rounds');
+    const newRound = await createRoundAsync({
+      round_number: body.round_number,
+      title: body.title,
+      topic: body.topic,
+      round_type: body.round_type,
+      duration_seconds: body.duration_seconds,
+      max_points: body.max_points,
+      state: body.state || 'locked',
+      order_index: body.order_index,
+      qualification_note: body.qualification_note,
+    });
+
+    await createAuditLog({
+      action: 'ORGANIZER_ROUND_CREATED',
+      entityType: 'round',
+      entityId: newRound.id,
+      details: { title: newRound.title, type: newRound.round_type, number: newRound.round_number },
+    });
+
+    return NextResponse.json({ success: true, round: newRound });
+  } catch (err: any) {
+    console.error('Create round error:', err);
+    return NextResponse.json(
+      { success: false, error: err.message || 'Failed to create round.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const token =
+      request.cookies.get('cryptex_session')?.value ||
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized: Session required.' }, { status: 401 });
+    }
+
+    const payload = parseAndVerifyToken(token);
+    if (!payload || payload.role !== 'organizer') {
+      return NextResponse.json({ error: 'Forbidden: Organizer privilege required.' }, { status: 403 });
+    }
+
+    const roundId = request.nextUrl.searchParams.get('roundId');
+    if (!roundId) {
+      return NextResponse.json({ success: false, error: 'roundId is required.' }, { status: 400 });
+    }
+
+    const { deleteRoundAsync } = await import('@/lib/rounds');
+    const deleted = await deleteRoundAsync(roundId);
+
+    if (!deleted) {
+      return NextResponse.json({ success: false, error: 'Round not found.' }, { status: 404 });
+    }
+
+    await createAuditLog({
+      action: 'ORGANIZER_ROUND_DELETED',
+      entityType: 'round',
+      entityId: roundId,
+      details: { roundId },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete round error:', err);
+    return NextResponse.json(
+      { success: false, error: err.message || 'Failed to delete round.' },
       { status: 500 }
     );
   }

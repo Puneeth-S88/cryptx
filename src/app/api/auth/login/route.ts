@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { createSession } from '@/lib/session';
 import { checkRateLimit } from '@/lib/ratelimit';
@@ -79,9 +80,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const coordinatorSlug = identifier.replace(/[^a-z0-9]/gi, '_').slice(0, 15) || 'admin';
+      const organizerId = `org_${coordinatorSlug}_${crypto.randomBytes(4).toString('hex')}`;
+
       const { token, session } = createSession(
         {
-          id: 'organizer_master_admin',
+          id: organizerId,
           name: 'Command Room Organizer',
           role: 'organizer',
           email: identifier.includes('@') ? identifier : 'organizer@cryptex.internal',
