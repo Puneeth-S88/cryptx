@@ -91,7 +91,7 @@ export async function verifySessionTokenEdge(
 
     if (typeof payload.createdAt === 'number') {
       const now = Date.now();
-      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 60_000) {
+      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 300_000) {
         return { valid: false };
       }
     }

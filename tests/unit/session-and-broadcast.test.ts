@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSession, validateSession } from '../../src/lib/session';
+import { createSession, validateSession, terminateSession, getActiveSession } from '../../src/lib/session';
 import {
   postAnnouncement,
   getActiveAnnouncement,
@@ -43,6 +43,22 @@ describe('Single Device Session Enforcement', () => {
     expect(val1.valid).toBe(false);
     expect(val1.superseded).toBe(true);
     expect(val1.error).toContain('Another device has logged into this account');
+  });
+
+  it('re-hydrates session into activeSessions on serverless cold-start if absent from memory', () => {
+    const { token, session } = createSession(
+      { id: 'team_gamma', name: 'Gamma Team', role: 'participant' },
+      { ipAddress: '192.168.1.40', deviceInfo: 'Gamma Tablet' }
+    );
+    // Simulate serverless lambda recycling / cache clearing
+    terminateSession('team_gamma');
+
+    // When request comes in, valid token is rehydrated into memory
+    const val = validateSession(token);
+    expect(val.valid).toBe(true);
+    expect(val.session?.accountId).toBe('team_gamma');
+    expect(val.session?.accountName).toBe('Gamma Team');
+    expect(getActiveSession('team_gamma')?.sessionId).toBe(session.sessionId);
   });
 });
 

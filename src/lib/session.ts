@@ -91,7 +91,8 @@ export function parseAndVerifyToken(token: string, secret?: string): SessionToke
 
     const json = Buffer.from(base64, 'base64url').toString('utf8');
     const payload = JSON.parse(json) as SessionTokenPayload;
-    if (Date.now() - payload.createdAt > SESSION_MAX_AGE_MS) {
+    const now = Date.now();
+    if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 300_000) {
       return null;
     }
     return payload;
@@ -161,7 +162,7 @@ export async function verifySessionTokenEdge(
 
     if (typeof payload.createdAt === 'number') {
       const now = Date.now();
-      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 60_000) {
+      if (now - payload.createdAt > SESSION_MAX_AGE_MS || payload.createdAt > now + 300_000) {
         return { valid: false };
       }
     }
@@ -245,10 +246,17 @@ export function validateSession(token: string): SessionValidationResult {
   const current = activeSessions.get(payload.accountId);
 
   if (!current) {
-    return {
-      valid: false,
-      error: 'No active session found. Please sign in.',
+    const hydratedSession: ActiveSession = {
+      sessionId: payload.sessionId,
+      accountId: payload.accountId,
+      accountName: payload.name,
+      role: payload.role,
+      teamId: payload.teamId,
+      createdAt: payload.createdAt,
+      lastActiveAt: Date.now(),
     };
+    activeSessions.set(payload.accountId, hydratedSession);
+    return { valid: true, session: hydratedSession };
   }
 
   // SINGLE-DEVICE CHECK:

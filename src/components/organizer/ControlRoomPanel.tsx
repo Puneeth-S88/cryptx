@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { PasswordGateModal } from './PasswordGateModal';
 import { ServerCountdown } from '@/components/shared/ServerCountdown';
 
 interface ControlRoomPanelProps {
@@ -22,94 +21,37 @@ interface ControlRoomPanelProps {
 }
 
 export function ControlRoomPanel({
-  eventId,
+  eventId: _eventId,
   round,
   stats,
   onStateChange,
 }: ControlRoomPanelProps) {
-  const [elevatedToken, setElevatedToken] = useState<string | null>(null);
-  const [showPasswordGate, setShowPasswordGate] = useState(false);
-  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
   const [loading, setLoading] = useState(false);
   const [extensionMinutes, setExtensionMinutes] = useState(5);
 
-  const requireElevation = (action: () => Promise<void>) => {
-    if (elevatedToken) {
-      action();
-    } else {
-      setPendingAction(() => action);
-      setShowPasswordGate(true);
-    }
-  };
-
-  const handleElevationSuccess = (token: string) => {
-    setElevatedToken(token);
-    if (pendingAction) {
-      pendingAction();
-      setPendingAction(null);
-    }
-  };
-
   const executeStateTransition = async (newState: string, extra?: Record<string, unknown>) => {
-    requireElevation(async () => {
-      setLoading(true);
-      try {
-        await onStateChange(newState, { ...extra, token: elevatedToken });
-      } finally {
-        setLoading(false);
-      }
-    });
-  };
-
-  const handleLockControls = async () => {
-    setElevatedToken(null);
-    await fetch('/api/organizer/lock-controls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
-    });
+    setLoading(true);
+    try {
+      await onStateChange(newState, extra);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Password Gate Elevation Banner */}
+      {/* Live Organizer Status Banner */}
       <div className="flex items-center justify-between p-4 rounded-xl bg-surface-card border border-surface-border">
         <div className="flex items-center gap-3">
-          <span
-            className={`w-3 h-3 rounded-full ${
-              elevatedToken ? 'bg-green-500 animate-pulse' : 'bg-zinc-600'
-            }`}
-          />
+          <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
           <div>
             <span className="font-mono-code text-xs text-white font-bold block">
-              {elevatedToken ? 'ORGANIZER CONTROLS ELEVATED (ACTIVE)' : 'CONTROLS LOCKED'}
+              ORGANIZER CONTROLS ACTIVE
             </span>
             <span className="text-[11px] text-typography-muted">
-              {elevatedToken
-                ? 'Sensitive actions authorized. Auto-extends on activity.'
-                : 'Enter Round Control Password to unlock round operations.'}
+              Live round transitions, timer adjustments, and scoring controls ready.
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {elevatedToken ? (
-            <button
-              type="button"
-              onClick={handleLockControls}
-              className="px-3 py-1.5 rounded bg-surface-dark border border-surface-border hover:border-red-500/50 text-red-400 font-mono-code text-xs transition-colors"
-            >
-              🔒 Lock Controls
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowPasswordGate(true)}
-              className="px-4 py-2 rounded bg-accent-blue hover:bg-accent-hover text-white font-mono-code text-xs font-semibold shadow-sm shadow-accent-glow transition-all"
-            >
-              Authenticate Password Gate →
-            </button>
-          )}
         </div>
       </div>
 
@@ -241,13 +183,6 @@ export function ControlRoomPanel({
         )}
       </div>
 
-      {/* Password Gate Modal */}
-      <PasswordGateModal
-        isOpen={showPasswordGate}
-        onSuccess={handleElevationSuccess}
-        onClose={() => setShowPasswordGate(false)}
-        eventId={eventId}
-      />
     </div>
   );
 }

@@ -571,11 +571,11 @@ describe('API Route Security and Validation Suite', () => {
       expect(res.status).toBe(401);
     });
 
-    it('rejects elevation with invalid password', async () => {
+    it('rejects elevation from participant session', async () => {
       const { token } = createSession({
-        id: 'organizer_1',
-        name: 'Lead Organizer',
-        role: 'organizer',
+        id: 'participant_1',
+        name: 'Player One',
+        role: 'participant',
       });
 
       const req = new NextRequest('http://localhost:3000/api/organizer/elevate', {
@@ -584,7 +584,7 @@ describe('API Route Security and Validation Suite', () => {
           'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ password: 'WrongPassword' }),
+        body: JSON.stringify({}),
       });
 
       const res = await elevateHandler(req);
@@ -593,7 +593,7 @@ describe('API Route Security and Validation Suite', () => {
       expect(json.success).toBe(false);
     });
 
-    it('elevates permissions with valid organizer password', async () => {
+    it('elevates permissions directly for authenticated organizer session', async () => {
       const { token } = createSession({
         id: 'organizer_1',
         name: 'Lead Organizer',
@@ -606,13 +606,14 @@ describe('API Route Security and Validation Suite', () => {
           'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ password: 'CryptX@2026!' }),
+        body: JSON.stringify({}),
       });
 
       const res = await elevateHandler(req);
       const json = await res.json();
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
+      expect(json.elevated).toBe(true);
       expect(json.token).toBeTruthy();
     });
 
