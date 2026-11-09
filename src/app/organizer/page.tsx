@@ -949,20 +949,16 @@ Security Notice:
                 }))}
                 onSelectRound={(id) => setBuilderSelectedRoundId(id)}
                 onCreateRound={async (newRound) => {
-                  try {
-                    const res = await fetch('/api/rounds', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(newRound),
-                    });
-                    if (res.ok) {
-                      await fetchRounds();
-                    } else {
-                      const data = await res.json().catch(() => ({}));
-                      alert(data.error || 'Failed to create round.');
-                    }
-                  } catch (err) {
-                    console.error('Failed to create round', err);
+                  const res = await fetch('/api/rounds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newRound),
+                  });
+                  if (res.ok) {
+                    await fetchRounds();
+                  } else {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to create round.');
                   }
                 }}
                 onDeleteRound={async (roundId) => {

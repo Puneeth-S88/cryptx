@@ -56,9 +56,11 @@ export function RoundBuilderDashboard({
   const [newPoints, setNewPoints] = useState(100);
   const [newNote, setNewNote] = useState('Top teams with highest cumulative score advance.');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
     requireElevation(async () => {
       setIsSubmitting(true);
       try {
@@ -76,6 +78,9 @@ export function RoundBuilderDashboard({
         setShowCreateModal(false);
         setNewTitle('');
         setNewTopic('');
+        setCreateError(null);
+      } catch (err: any) {
+        setCreateError(err.message || 'Failed to create round');
       } finally {
         setIsSubmitting(false);
       }
@@ -101,7 +106,10 @@ export function RoundBuilderDashboard({
         </div>
         <button
           type="button"
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setCreateError(null);
+            setShowCreateModal(true);
+          }}
           className="px-4 py-2 rounded bg-accent-blue hover:bg-accent-hover text-white text-xs font-mono-code font-bold transition-all shadow-sm shadow-accent-glow"
         >
           + Add New Round
@@ -197,6 +205,13 @@ export function RoundBuilderDashboard({
             </div>
 
             <form onSubmit={handleCreateSubmit} className="space-y-4">
+              {createError && (
+                <div className="p-3 rounded bg-red-950/60 border border-red-500/50 text-red-200 text-xs font-mono-code flex items-start gap-2">
+                  <span className="text-red-400 font-bold">Error:</span>
+                  <span className="flex-1">{createError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-mono-code text-typography-muted uppercase mb-1">
                   Round Title

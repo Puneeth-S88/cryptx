@@ -4,12 +4,14 @@
  * Coordinates timer synchronization across organizer console, play arena, and big screen projector.
  */
 
+import type { RoundType } from '@/lib/crypto/schemas';
+
 export interface RoundItem {
   id: string;
   round_number: number;
   title: string;
   topic: string;
-  round_type: 'standard' | 'polybius' | 'scramble' | 'memory' | 'auction' | 'colour' | 'vigenere';
+  round_type: RoundType;
   state: 'locked' | 'open' | 'paused' | 'closed' | 'scored';
   duration_seconds: number;
   max_points: number;
@@ -139,6 +141,51 @@ export function getAllRounds(): RoundItem[] {
   return globalThis.__cryptex_rounds!;
 }
 
+export function mapRoundTypeToPuzzleType(roundType: string): string {
+  switch (roundType) {
+    case 'polybius':
+      return 'polybius_grid';
+    case 'scramble':
+      return 'drag_scramble';
+    case 'memory':
+      return 'memory_cipher';
+    case 'auction':
+      return 'cipher_auction';
+    case 'colour':
+      return 'colour_cipher';
+    case 'vigenere':
+      return 'vigenere_analysis';
+    case 'jury':
+      return 'manual_jury';
+    case 'standard':
+    default:
+      return 'mcq';
+  }
+}
+
+export function mapPuzzleTypeToRoundType(puzzleType?: string): RoundItem['round_type'] {
+  switch (puzzleType) {
+    case 'polybius_grid':
+      return 'polybius';
+    case 'drag_scramble':
+      return 'scramble';
+    case 'memory_cipher':
+      return 'memory';
+    case 'cipher_auction':
+      return 'auction';
+    case 'colour_cipher':
+      return 'colour';
+    case 'vigenere_analysis':
+      return 'vigenere';
+    case 'manual_jury':
+      return 'jury';
+    case 'mcq':
+    case 'method_cipher':
+    default:
+      return 'standard';
+  }
+}
+
 export async function getAllRoundsAsync(): Promise<RoundItem[]> {
   const isMockUrl =
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -158,7 +205,7 @@ export async function getAllRoundsAsync(): Promise<RoundItem[]> {
           round_number: r.round_number,
           title: r.title,
           topic: r.topic || '',
-          round_type: (r.round_type || (r.puzzle_type === 'mcq' ? 'standard' : r.puzzle_type)) as any,
+          round_type: (r.round_type || mapPuzzleTypeToRoundType(r.puzzle_type)) as any,
           state: r.state,
           duration_seconds: r.duration_seconds || 600,
           max_points: r.max_points || 100,
@@ -330,20 +377,32 @@ export async function createRoundAsync(roundData: {
     try {
       const { supabaseAdmin } = await import('./supabase/admin');
       const { EVENT_ID } = await import('./supabase/sync');
-      await supabaseAdmin.from('event_rounds').insert({
+      const puzzleType = mapRoundTypeToPuzzleType(newRound.round_type);
+      const { error: insertError } = await supabaseAdmin.from('event_rounds').insert({
         event_id: EVENT_ID,
         round_number: nextNumber,
         title: newRound.title,
         topic: newRound.topic,
         round_type: newRound.round_type,
-        puzzle_type: newRound.round_type === 'standard' ? 'mcq' : newRound.round_type,
+        puzzle_type: puzzleType,
         state: newRound.state,
         duration_seconds: newRound.duration_seconds,
         max_points: newRound.max_points,
         order_index: roundData.order_index ?? nextNumber,
       });
-    } catch (err) {
+
+      if (insertError) {
+        console.error('Supabase createRoundAsync insert error:', insertError);
+        throw new Error(insertError.message || 'Failed to insert round into database');
+      }
+    } catch (err: any) {
       console.error('Supabase createRoundAsync error:', err);
+      const idx = list.indexOf(newRound);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+        globalThis.__cryptex_rounds = list;
+      }
+      throw err;
     }
   }
 

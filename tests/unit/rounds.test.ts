@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getAllRounds, getRoundById, getActiveRound, updateRoundState, resetRoundsStore } from '@/lib/rounds';
+import {
+  getAllRounds,
+  getRoundById,
+  getActiveRound,
+  updateRoundState,
+  resetRoundsStore,
+  createRoundAsync,
+  mapRoundTypeToPuzzleType,
+  mapPuzzleTypeToRoundType,
+} from '@/lib/rounds';
 
 describe('Round Lifecycle and Activation Store', () => {
   beforeEach(() => {
@@ -100,5 +109,53 @@ describe('Round Lifecycle and Activation Store', () => {
     expect(lockedFromScored?.state).toBe('locked');
     expect(lockedFromScored?.deadline).toBeNull();
     expect(lockedFromScored?.closed_at).toBeNull();
+  });
+
+  it('correctly maps round_type to Supabase puzzle_type enum and vice-versa', () => {
+    expect(mapRoundTypeToPuzzleType('polybius')).toBe('polybius_grid');
+    expect(mapRoundTypeToPuzzleType('scramble')).toBe('drag_scramble');
+    expect(mapRoundTypeToPuzzleType('memory')).toBe('memory_cipher');
+    expect(mapRoundTypeToPuzzleType('auction')).toBe('cipher_auction');
+    expect(mapRoundTypeToPuzzleType('colour')).toBe('colour_cipher');
+    expect(mapRoundTypeToPuzzleType('vigenere')).toBe('vigenere_analysis');
+    expect(mapRoundTypeToPuzzleType('jury')).toBe('manual_jury');
+    expect(mapRoundTypeToPuzzleType('standard')).toBe('mcq');
+
+    expect(mapPuzzleTypeToRoundType('polybius_grid')).toBe('polybius');
+    expect(mapPuzzleTypeToRoundType('drag_scramble')).toBe('scramble');
+    expect(mapPuzzleTypeToRoundType('memory_cipher')).toBe('memory');
+    expect(mapPuzzleTypeToRoundType('cipher_auction')).toBe('auction');
+    expect(mapPuzzleTypeToRoundType('colour_cipher')).toBe('colour');
+    expect(mapPuzzleTypeToRoundType('vigenere_analysis')).toBe('vigenere');
+    expect(mapPuzzleTypeToRoundType('manual_jury')).toBe('jury');
+    expect(mapPuzzleTypeToRoundType('mcq')).toBe('standard');
+    expect(mapPuzzleTypeToRoundType('method_cipher')).toBe('standard');
+  });
+
+  it('can create rounds of all modes successfully', async () => {
+    const modes = [
+      'standard',
+      'polybius',
+      'scramble',
+      'memory',
+      'auction',
+      'colour',
+      'vigenere',
+      'jury',
+    ] as const;
+
+    for (const mode of modes) {
+      const created = await createRoundAsync({
+        title: `Test Round ${mode}`,
+        topic: `Topic for ${mode}`,
+        round_type: mode,
+        duration_seconds: 600,
+        max_points: 100,
+      });
+
+      expect(created).toBeDefined();
+      expect(created.round_type).toBe(mode);
+      expect(created.title).toBe(`Test Round ${mode}`);
+    }
   });
 });
