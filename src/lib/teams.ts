@@ -31,7 +31,7 @@ declare global {
   var __cryptex_teams_store: TeamRecord[] | undefined;
 }
 
-const initialTeams: TeamRecord[] = [
+const initialTeams: TeamRecord[] = [/*
   {
     id: 't1',
     name: 'CipherAces',
@@ -118,10 +118,10 @@ const initialTeams: TeamRecord[] = [
       { id: 'm_5_1', name: 'Eve Coordinate', email: 'captain@polybius.dev', role: 'Captain', joinedAt: '2026-11-11T00:00:00.000Z' },
     ],
   },
-];
+*/];
 
 export function resetTeamsStore(): void {
-  globalThis.__cryptex_teams_store = JSON.parse(JSON.stringify(initialTeams));
+  globalThis.__cryptex_teams_store = [];//JSON.parse(JSON.stringify(initialTeams));
 }
 
 export function getAllTeams(): TeamRecord[] {
